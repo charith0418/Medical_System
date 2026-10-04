@@ -14,8 +14,10 @@ const adminRoutes = require('./routes/adminRoutes');
 const app = express();
 
 // Allowed Origins List
+// Allowed Origins List
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  'https://medical-healthcare-tau.vercel.app', // Your live Vercel frontend
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
