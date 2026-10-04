@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import API from "../api/axios"; // Adjust path if your axios file is in another folder
+import axios from "axios";
 import Logo from "../assets/logo.png";
 import Hero from "../assets/hero.png";
 
@@ -21,6 +21,14 @@ import {
 
 import { MdOutlineMailOutline } from "react-icons/md";
 import { RiLockPasswordFill } from "react-icons/ri";
+
+// Automatically cleans any trailing slash or duplicate /api
+const rawUrl =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000";
+
+const API_BASE_URL = rawUrl.replace(/\/api\/?$/, "").replace(/\/+$/, "");
 
 const LoginForm = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState("");
@@ -89,8 +97,8 @@ const LoginForm = ({ onLoginSuccess }) => {
     try {
       setLoading(true);
 
-      // Uses API instance: baseURL (/api) + /auth/login = /api/auth/login
-      const response = await API.post("/auth/login", {
+      // Always routes cleanly to /api/auth/login without double /api
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         email: email.trim(),
         password,
         role,
@@ -128,7 +136,6 @@ const LoginForm = ({ onLoginSuccess }) => {
     }
   };
 
-  // Submit registered email to dispatch link
   const handleForgotPasswordSubmit = async (e) => {
     e.preventDefault();
     setForgotError("");
@@ -142,8 +149,7 @@ const LoginForm = ({ onLoginSuccess }) => {
     try {
       setForgotLoading(true);
 
-      // Uses API instance: baseURL (/api) + /auth/forgot-password = /api/auth/forgot-password
-      const response = await API.post("/auth/forgot-password", {
+      const response = await axios.post(`${API_BASE_URL}/api/auth/forgot-password`, {
         email: forgotEmail.trim(),
       });
 
@@ -165,11 +171,9 @@ const LoginForm = ({ onLoginSuccess }) => {
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center bg-slate-950 p-4 sm:p-6 lg:p-8 font-sans overflow-y-auto">
-      {/* Background Ambient Glow Orbs */}
       <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[160px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/20 rounded-full blur-[160px] pointer-events-none" />
 
-      {/* Main Container */}
       <div className="relative z-10 w-full max-w-[95%] xl:max-w-[1400px] min-h-[85vh] my-auto bg-white/95 backdrop-blur-2xl rounded-3xl lg:rounded-[2.5rem] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.45)] border border-white/20 grid grid-cols-1 lg:grid-cols-12">
         {/* LEFT PANEL */}
         <div
@@ -278,7 +282,6 @@ const LoginForm = ({ onLoginSuccess }) => {
             )}
 
             <form onSubmit={handleLoginSubmit} className="space-y-6">
-              {/* EMAIL FIELD */}
               <div>
                 <label
                   htmlFor="email"
@@ -303,7 +306,6 @@ const LoginForm = ({ onLoginSuccess }) => {
                 </div>
               </div>
 
-              {/* PASSWORD FIELD */}
               <div>
                 <label
                   htmlFor="password"
@@ -341,7 +343,6 @@ const LoginForm = ({ onLoginSuccess }) => {
                 </div>
               </div>
 
-              {/* REMEMBER & FORGOT */}
               <div className="flex items-center justify-between gap-4 pt-1">
                 <label className="flex items-center gap-3 text-lg font-bold text-slate-700 cursor-pointer select-none">
                   <input
@@ -353,7 +354,6 @@ const LoginForm = ({ onLoginSuccess }) => {
                   Remember me
                 </label>
 
-                {/* MODAL TRIGGER FOR FORGOT PASSWORD */}
                 <button
                   type="button"
                   onClick={() => {
@@ -368,7 +368,6 @@ const LoginForm = ({ onLoginSuccess }) => {
                 </button>
               </div>
 
-              {/* ROLE SELECTION */}
               <div className="pt-3">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-lg font-bold text-slate-800">
@@ -426,7 +425,6 @@ const LoginForm = ({ onLoginSuccess }) => {
                 </div>
               </div>
 
-              {/* ACTION BUTTON */}
               <button
                 type="submit"
                 disabled={loading}
@@ -456,11 +454,9 @@ const LoginForm = ({ onLoginSuccess }) => {
         </div>
       </div>
 
-      {/* FORGOT PASSWORD MODAL */}
       {showForgotModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 sm:p-10 animate-in fade-in zoom-in-95 duration-200">
-            {/* Close Button */}
             <button
               onClick={() => setShowForgotModal(false)}
               className="absolute top-6 right-6 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
@@ -469,7 +465,6 @@ const LoginForm = ({ onLoginSuccess }) => {
               <FaXmark className="text-xl" />
             </button>
 
-            {/* Modal Header */}
             <div className="mb-6">
               <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mb-4">
                 <RiLockPasswordFill />
@@ -482,7 +477,6 @@ const LoginForm = ({ onLoginSuccess }) => {
               </p>
             </div>
 
-            {/* Success Banner */}
             {forgotMessage && (
               <div className="mb-5 flex items-start gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-base font-semibold">
                 <FaCircleCheck className="text-emerald-600 text-lg flex-shrink-0 mt-0.5" />
@@ -490,7 +484,6 @@ const LoginForm = ({ onLoginSuccess }) => {
               </div>
             )}
 
-            {/* Error Banner */}
             {forgotError && (
               <div className="mb-5 flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-base font-semibold">
                 <FaExclamation className="text-rose-600 text-lg flex-shrink-0 mt-0.5" />
@@ -498,7 +491,6 @@ const LoginForm = ({ onLoginSuccess }) => {
               </div>
             )}
 
-            {/* Email Form */}
             <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-800 mb-1.5">
