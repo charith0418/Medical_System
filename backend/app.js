@@ -13,39 +13,19 @@ const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
-// Allowed Origins List
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'https://medical-healthcare-tau.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-].filter(Boolean);
-
-// CORS Configuration
+// CORS Configuration - allows incoming origins and handles preflight cleanly
 const corsOptions = {
-  origin: function (origin, callback) {
-    // 1. Allow non-browser requests (Postman, curl, server-to-server)
-    // 2. Allow explicitly listed origins (production URL & local dev ports)
-    // 3. Allow ANY Vercel preview or branch deployment (*.vercel.app)
-    if (
-      !origin ||
-      allowedOrigins.includes(origin) ||
-      origin.endsWith('.vercel.app')
-    ) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS policy does not allow access from origin: ${origin}`));
-    }
-  },
+  origin: true, // Dynamically mirrors and allows incoming origin (Vercel & localhost)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200,
 };
 
 // Middleware
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Intercept and approve all preflight OPTIONS requests
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
