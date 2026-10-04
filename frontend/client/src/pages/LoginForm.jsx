@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import API from "../api/axios"; // Adjust path if your axios file is in another folder
 import Logo from "../assets/logo.png";
 import Hero from "../assets/hero.png";
 
@@ -21,9 +21,6 @@ import {
 
 import { MdOutlineMailOutline } from "react-icons/md";
 import { RiLockPasswordFill } from "react-icons/ri";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const LoginForm = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState("");
@@ -92,7 +89,8 @@ const LoginForm = ({ onLoginSuccess }) => {
     try {
       setLoading(true);
 
-      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+      // Uses API instance: baseURL (/api) + /auth/login = /api/auth/login
+      const response = await API.post("/auth/login", {
         email: email.trim(),
         password,
         role,
@@ -144,7 +142,8 @@ const LoginForm = ({ onLoginSuccess }) => {
     try {
       setForgotLoading(true);
 
-      const response = await axios.post(`${API_BASE_URL}/api/auth/forgot-password`, {
+      // Uses API instance: baseURL (/api) + /auth/forgot-password = /api/auth/forgot-password
+      const response = await API.post("/auth/forgot-password", {
         email: forgotEmail.trim(),
       });
 
@@ -435,7 +434,7 @@ const LoginForm = ({ onLoginSuccess }) => {
               >
                 {loading ? (
                   <>
-                    <span className="w-7 h-7 border-3 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span className="w-7 h-7 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     <span>Authenticating...</span>
                   </>
                 ) : (
@@ -457,7 +456,7 @@ const LoginForm = ({ onLoginSuccess }) => {
         </div>
       </div>
 
-      {/* ================= FORGOT PASSWORD MODAL (EMAIL ONLY) ================= */}
+      {/* FORGOT PASSWORD MODAL */}
       {showForgotModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 sm:p-10 animate-in fade-in zoom-in-95 duration-200">
