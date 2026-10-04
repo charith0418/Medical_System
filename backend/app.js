@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 
 // Import Routes
 const authRoutes = require('./routes/authRoutes');
@@ -13,36 +12,41 @@ const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
-// CORS Configuration - allows incoming origins and handles preflight cleanly
-const corsOptions = {
-  origin: true, // Dynamically mirrors and allows incoming origin (Vercel & localhost)
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200,
-};
+// BULLETPROOF CORS & PREFLIGHT HANDLER
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+  );
 
-// Middleware
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Intercept and approve all preflight OPTIONS requests
+  // If the browser is sending a preflight check, respond 200 immediately
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
+// Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // API Routes Setup
 app.use('/api/auth', authRoutes);
-
-// Supports both singular and plural paths to prevent 404 errors
 app.use('/api/patient', patientRoutes);
 app.use('/api/patients', patientRoutes);
-
 app.use('/api/treatments', treatmentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/medicines', medicineRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/visitations', visitationRoutes);
-
-// Admin Routes Mount
 app.use('/api/admin', adminRoutes);
 
 // Root Health Check Route
