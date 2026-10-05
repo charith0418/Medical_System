@@ -11,7 +11,14 @@ import EmergencyContact from "../patient/EmergencyContact";
 import MedicalHistoryPopup from "../patient/MedicalHistoryPopup";
 import PrescriptionPopup from "../patient/PrescriptionPopup";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// Automatically sanitizes duplicate /api segments and trailing slashes
+const rawUrl =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://medical-system-5fwx.onrender.com";
+
+const CLEAN_BASE_URL = rawUrl.replace(/\/api\/?$/, "").replace(/\/+$/, "");
+const API_BASE_URL = `${CLEAN_BASE_URL}/api`;
 
 export default function Dashboard({ onLogout }) {
   // User & Medical Data States
@@ -58,12 +65,14 @@ export default function Dashboard({ onLogout }) {
         setLoading(true);
         setError(null);
 
-        const token = localStorage.getItem("token");
+        const token =
+          localStorage.getItem("token") || sessionStorage.getItem("token");
         if (!token) {
           throw new Error("No authorization token found. Please log in again.");
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/patient/dashboard`, {
+        // Resolves to exactly /api/patient/dashboard
+        const response = await fetch(`${API_BASE_URL}/patient/dashboard`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -77,23 +86,31 @@ export default function Dashboard({ onLogout }) {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || errorData.error || `Server error: ${response.status}`);
+          throw new Error(
+            errorData.message ||
+              errorData.error ||
+              `Server error: ${response.status}`
+          );
         }
 
         const data = await response.json();
-        const rawProfile = data.dashboardData || data;
+        const rawProfile =
+          data.dashboardData || data.data || data.patient || data;
+
+        const userObj = rawProfile.user || rawProfile;
 
         // Map User Profile Details
-        const formattedUser = rawProfile.user || {
-          name: rawProfile.fullName || rawProfile.name || "Patient",
-          patientId: rawProfile.patientId || rawProfile._id || "N/A",
-          bloodGroup: rawProfile.bloodGroup || "N/A",
-          dob: rawProfile.dob ? new Date(rawProfile.dob).toLocaleDateString() : "N/A",
-          phone: rawProfile.phone || "N/A",
-          email: rawProfile.email || "N/A",
-          address: rawProfile.address || "N/A",
-          gender: rawProfile.gender || "N/A",
-          profileImage: rawProfile.profileImage || "",
+        const formattedUser = {
+          name: userObj.fullName || userObj.name || "Patient",
+          fullName: userObj.fullName || userObj.name || "Patient",
+          patientId: userObj.patientId || userObj._id || "N/A",
+          bloodGroup: userObj.bloodGroup || "N/A",
+          dob: userObj.dob ? new Date(userObj.dob).toLocaleDateString() : "N/A",
+          phone: userObj.phone || "N/A",
+          email: userObj.email || "N/A",
+          address: userObj.address || "N/A",
+          gender: userObj.gender || "N/A",
+          profileImage: userObj.profileImage || "",
         };
 
         // Map Emergency Contact Details
@@ -220,29 +237,46 @@ export default function Dashboard({ onLogout }) {
       </main>
 
       {/* Medical History Modal */}
-      <MedicalHistoryPopup
-        open={medicalHistoryOpen}
-        onClose={() => {
-          setMedicalHistoryOpen(false);
-          setActiveTab("Dashboard");
-        }}
-        user={user}
-        medicalHistory={medicalHistory}
-        surgeries={surgeries}
-        allergies={allergies}
-        vaccinations={vaccinations}
-      />
+      {medicalHistoryOpen && (
+        <MedicalHistoryPopup
+          open={medicalHistoryOpen}
+          onClose={() => {
+            setMedicalHistoryOpen(false);
+            setActiveTab("Dashboard");
+          }}
+          patient={{
+            ...user,
+            history: medicalHistory,
+            medicalHistory: medicalHistory,
+            surgeries: surgeries,
+            allergies: allergies,
+            vaccinations: vaccinations,
+          }}
+          user={user}
+          medicalHistory={medicalHistory}
+          surgeries={surgeries}
+          allergies={allergies}
+          vaccinations={vaccinations}
+        />
+      )}
 
       {/* Prescriptions Modal */}
-      <PrescriptionPopup
-        open={prescriptionOpen}
-        onClose={() => {
-          setPrescriptionOpen(false);
-          setActiveTab("Dashboard");
-        }}
-        user={user}
-        prescriptions={prescriptions}
-      />
+      {prescriptionOpen && (
+        <PrescriptionPopup
+          open={prescriptionOpen}
+          onClose={() => {
+            setPrescriptionOpen(false);
+            setActiveTab("Dashboard");
+          }}
+          patient={{
+            ...user,
+            prescriptions: prescriptions,
+            medications: prescriptions,
+          }}
+          user={user}
+          prescriptions={prescriptions}
+        />
+      )}
     </div>
   );
 }
