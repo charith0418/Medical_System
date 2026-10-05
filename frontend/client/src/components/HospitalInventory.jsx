@@ -4,7 +4,22 @@ import {
   FaTrash, FaBoxOpen, FaLayerGroup, FaHistory 
 } from 'react-icons/fa';
 
-const API_URL = 'http://localhost:5000/api/medicines';
+// Dynamically resolve live Render URL and guarantee single /api prefix
+const rawUrl =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://medical-system-5fwx.onrender.com';
+
+const CLEAN_BASE_URL = rawUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+const API_URL = `${CLEAN_BASE_URL}/api/medicines`;
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+};
 
 // Helper function to calculate similarity score between two strings (0.0 to 1.0)
 const getFuzzyScore = (str1, str2) => {
@@ -45,40 +60,55 @@ const HospitalInventory = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Default fallback location that satisfies the backend model enum array parameters
   const DEFAULT_LOCATION = 'Pharmacy Main Shelf A';
 
   const [newMed, setNewMed] = useState({
     medicineMasterId: '', 
     selectedName: '',     
     quantity: '',
-    storageLocation: DEFAULT_LOCATION // Defaulted to pass backend validation rules safely
+    storageLocation: DEFAULT_LOCATION
   });
 
-  useEffect(() => {
-    const loadInitialData = async () => {
-      setIsLoading(true);
-      try {
-        const [stockRes, masterRes] = await Promise.all([
-          fetch(API_URL),
-          fetch(`${API_URL}/master-list`)
-        ]);
+  const loadInitialData = async () => {
+    setIsLoading(true);
+    setErrorMessage("");
+    try {
+      const [stockRes, masterRes] = await Promise.all([
+        fetch(API_URL, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/master-list`, { headers: getAuthHeaders() })
+      ]);
 
-        if (!stockRes.ok || !masterRes.ok) throw new Error("Database network authentication error.");
-        
-        const stockData = await stockRes.json();
-        const masterData = await masterRes.json();
-
-        console.log("DEBUG: Raw master list array loaded from database API:", masterData);
-
-        setInventory(stockData);
-        setMasterList(masterData);
-      } catch (err) {
-        setErrorMessage(err.message);
-      } finally {
-        setIsLoading(false);
+      if (!stockRes.ok && stockRes.status === 401) {
+        throw new Error("Session expired or unauthorized. Please re-login.");
       }
-    };
+
+      const stockRaw = stockRes.ok ? await stockRes.json() : [];
+      const masterRaw = masterRes.ok ? await masterRes.json() : [];
+
+      // Safely extract arrays whether wrapped in { data: [...] } or direct arrays
+      const stockData = Array.isArray(stockRaw)
+        ? stockRaw
+        : Array.isArray(stockRaw?.data)
+        ? stockRaw.data
+        : [];
+
+      const masterData = Array.isArray(masterRaw)
+        ? masterRaw
+        : Array.isArray(masterRaw?.data)
+        ? masterRaw.data
+        : [];
+
+      setInventory(stockData);
+      setMasterList(masterData);
+    } catch (err) {
+      console.error("Inventory fetch error:", err);
+      setErrorMessage(err.message || "Failed connecting to medicine database.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadInitialData();
   }, []);
 
@@ -87,11 +117,11 @@ const HospitalInventory = () => {
     setNewMed(prev => ({ ...prev, selectedName: val, medicineMasterId: '' }));
 
     if (val.trim().length > 0) {
-      console.log(`DEBUG: User typed "${val}". Evaluating against master list items...`);
-      
-      const scoredMatches = masterList.map(item => {
+      // Evaluate against loaded master list
+      const sourceList = masterList.length > 0 ? masterList : inventory.map(i => i.medicineMasterId).filter(Boolean);
+
+      const scoredMatches = sourceList.map(item => {
         const actualName = item.medicineName || item.name || item.drugName || "";
-        
         return {
           ...item,
           displayName: actualName, 
@@ -100,10 +130,9 @@ const HospitalInventory = () => {
       });
 
       const matches = scoredMatches
+        .filter(item => item.score > 0 || item.displayName.toLowerCase().includes(val.toLowerCase()))
         .sort((a, b) => b.score - a.score)
         .slice(0, 10); 
-
-      console.log("DEBUG: Final computed search matches list:", matches);
 
       setSuggestions(matches);
       setShowSuggestions(true);
@@ -117,7 +146,7 @@ const HospitalInventory = () => {
     setNewMed(prev => ({
       ...prev,
       selectedName: item.displayName || item.medicineName || item.name || "",
-      medicineMasterId: item._id
+      medicineMasterId: item._id || item.id
     }));
     setShowSuggestions(false);
     setErrorMessage("");
@@ -133,7 +162,7 @@ const HospitalInventory = () => {
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           medicineMasterId: newMed.medicineMasterId,
           quantity: Number(newMed.quantity),
@@ -142,17 +171,15 @@ const HospitalInventory = () => {
       });
 
       if (!response.ok) {
-        // Attempt to capture the specific Mongoose reason string from response stream
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || "Entry rejection rules processed by remote server.");
       }
       
       const resData = await response.json();
+      const addedRow = resData.medicine || resData.data || resData;
       
-      // Backend structured response includes populated row data inside the 'medicine' key
-      setInventory([resData.medicine, ...inventory]);
+      setInventory(prev => [addedRow, ...prev]);
       
-      // Clean form states and return to system default tracking locations safely
       setNewMed({ 
         medicineMasterId: '', 
         selectedName: '', 
@@ -168,19 +195,22 @@ const HospitalInventory = () => {
   const handleRemoveItem = async (id) => {
     if (!window.confirm("Permanently remove this item entry row?")) return;
     try {
-      const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error("Deletion failed.");
-      setInventory(inventory.filter(item => item._id !== id));
+      const response = await fetch(`${API_URL}/${id}`, { 
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) throw new Error("Deletion failed on server.");
+      setInventory(prev => prev.filter(item => item._id !== id));
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const totalStockItems = inventory.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
-  const lowStockAlerts = inventory.filter(item => item.quantity <= 20).length;
+  const totalStockItems = inventory.reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0);
+  const lowStockAlerts = inventory.filter(item => (Number(item.quantity) || 0) <= 20).length;
 
   const filteredView = inventory.filter(item => {
-    const target = item.medicineMasterId?.medicineName || item.medicineMasterId?.name || "";
+    const target = item.medicineMasterId?.medicineName || item.medicineMasterId?.name || item.name || "";
     return target.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
@@ -235,12 +265,12 @@ const HospitalInventory = () => {
                 placeholder="Type name (e.g., Paracetamol)..." 
                 onChange={handleNameType} 
                 onFocus={() => newMed.selectedName.trim().length > 0 && setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                className={`w-full p-3 bg-slate-50 border rounded-xl text-sm font-medium focus:bg-white focus:outline-none transition-all text-slate-950 ${newMed.medicineMasterId ? 'border-emerald-300 focus:ring-2 focus:ring-emerald-500' : 'border-slate-200 focus:ring-2 focus:ring-[#078a72]'}`} 
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
+                className={`w-full p-3 bg-slate-50 border rounded-xl text-sm font-medium focus:bg-white focus:outline-none transition-all text-slate-950 ${newMed.medicineMasterId ? 'border-emerald-400 ring-2 ring-emerald-500/20' : 'border-slate-200 focus:ring-2 focus:ring-[#078a72]'}`} 
                 required 
               />
               
-              {/* Dropdown Box Menu */}
+              {/* Dropdown Suggestions List */}
               {showSuggestions && suggestions.length > 0 && (
                 <ul 
                   className="absolute left-0 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100"
@@ -248,14 +278,14 @@ const HospitalInventory = () => {
                 >
                   {suggestions.map((item) => (
                     <li 
-                      key={item._id}
+                      key={item._id || item.id}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         handleSelectDrug(item);
                       }}
                       className="p-3 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer flex flex-col items-start"
                     >
-                      <span className="font-bold text-slate-900">{item.displayName || "Named Variant Missing"}</span>
+                      <span className="font-bold text-slate-900">{item.displayName || "Named Variant"}</span>
                       <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
                         {item.medicineCode || item.code || "No Code"} • {item.categoryClass || item.category || "General"}
                       </span>
@@ -278,7 +308,6 @@ const HospitalInventory = () => {
                 />
               </div>
               
-              {/* DROPDOWN LOCATION SELECT FIELD */}
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Location</label>
                 <select 
@@ -321,6 +350,8 @@ const HospitalInventory = () => {
               <div className="overflow-x-auto">
                 {isLoading ? (
                   <div className="text-center py-12 text-sm text-slate-400 font-semibold animate-pulse">Syncing logs database...</div>
+                ) : filteredView.length === 0 ? (
+                  <div className="text-center py-12 text-sm text-slate-400 font-medium">No inventory stock items found. Add one on the left.</div>
                 ) : (
                   <table className="w-full text-sm text-left text-slate-600 min-w-[600px]">
                     <thead className="text-xs font-bold text-slate-400 uppercase bg-slate-50/70 border-b border-slate-200">
@@ -336,8 +367,8 @@ const HospitalInventory = () => {
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {filteredView.map((item) => {
                         const master = item.medicineMasterId || {};
-                        const isLow = item.quantity <= 20;
-                        const tableName = master.medicineName || master.name || "Unknown Variant";
+                        const isLow = (Number(item.quantity) || 0) <= 20;
+                        const tableName = master.medicineName || master.name || item.name || "Unknown Variant";
                         return (
                           <tr key={item._id} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{master.medicineCode || master.code || "N/A"}</td>
