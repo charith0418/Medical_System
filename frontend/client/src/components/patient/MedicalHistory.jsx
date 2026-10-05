@@ -1,8 +1,13 @@
 import React from "react";
 import { FaNotesMedical } from "react-icons/fa";
 
-export default function MedicalHistory({ medicalHistory = [], onViewAll }) {
-  const historyList = Array.isArray(medicalHistory) ? medicalHistory : [];
+export default function MedicalHistory({ medicalHistory = [], history = [], onViewAll }) {
+  // Support both medicalHistory and history prop names
+  const rawList = Array.isArray(medicalHistory) && medicalHistory.length > 0 
+    ? medicalHistory 
+    : Array.isArray(history) 
+    ? history 
+    : [];
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-6 h-full flex flex-col justify-between">
@@ -25,31 +30,41 @@ export default function MedicalHistory({ medicalHistory = [], onViewAll }) {
 
         {/* History List */}
         <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
-          {historyList.length > 0 ? (
-            historyList.map((item, index) => {
-              const docName =
+          {rawList.length > 0 ? (
+            rawList.map((item, index) => {
+              // Extract doctor name from doctorName, doctor, or nested object
+              const rawDoc =
                 item.doctorName ||
                 item.doctor ||
                 item.physician ||
                 (typeof item.doctor === "object" ? item.doctor.name || item.doctor.fullName : null) ||
-                "General Doctor";
+                "Dr. Medical Officer";
+
+              const docName = String(rawDoc).trim().startsWith("Dr.") 
+                ? String(rawDoc).trim() 
+                : `Dr. ${String(rawDoc).trim()}`;
 
               const diagnosisName =
                 item.diagnosis ||
                 item.illness ||
                 item.condition ||
-                "General Consultation";
+                item.notes ||
+                "General Visit";
 
-              const formattedDate = item.date
-                ? new Date(item.date).toLocaleDateString()
-                : item.createdAt
-                ? new Date(item.createdAt).toLocaleDateString()
-                : "Recent";
+              // Format date cleanly
+              let formattedDate = "Recent";
+              if (item.date) {
+                formattedDate = item.date.includes("T") 
+                  ? new Date(item.date).toLocaleDateString() 
+                  : item.date;
+              } else if (item.createdAt) {
+                formattedDate = new Date(item.createdAt).toLocaleDateString();
+              }
 
               return (
                 <div
                   key={item._id || index}
-                  className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition bg-slate-50/40"
+                  className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition bg-slate-50/40 text-left"
                 >
                   <div className="flex justify-between items-start">
                     <div>
@@ -58,7 +73,7 @@ export default function MedicalHistory({ medicalHistory = [], onViewAll }) {
                       </h4>
 
                       <p className="text-sm text-gray-500 mt-1">
-                        {docName.startsWith("Dr.") ? docName : `Dr. ${docName}`}
+                        {docName}
                         {item.department ? ` • ${item.department}` : ""}
                       </p>
                     </div>
