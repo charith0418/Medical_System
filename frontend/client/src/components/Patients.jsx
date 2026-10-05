@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { FaSearch, FaEye, FaUserEdit, FaTimes } from 'react-icons/fa';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Sanitize URL to ensure consistent /api prefix across environments
+const rawUrl =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://medical-system-5fwx.onrender.com';
+
+const CLEAN_BASE_URL = rawUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+const API_BASE_URL = `${CLEAN_BASE_URL}/api`;
 
 const calculateAge = (dob) => {
   if (!dob) return 'N/A';
-  // Replace hyphens with forward slashes for cross-browser Safari/Firefox compatibility
-  const sanitizedDob = dob.replace(/-/g, '/');
-  const diff = Date.now() - new Date(sanitizedDob).getTime();
-  const age = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-  return age >= 0 ? age : 0;
+  try {
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return 'N/A';
+    const diff = Date.now() - birthDate.getTime();
+    const age = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+    return age >= 0 ? age : 0;
+  } catch {
+    return 'N/A';
+  }
 };
 
 const Patients = () => {
@@ -20,67 +31,81 @@ const Patients = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [editPatient, setEditPatient] = useState(null);
 
-  // Fetch real data directly from the Mongoose backend database with Auth Headers
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const token = localStorage.getItem('token'); 
-        
-        const response = await fetch(`${API_BASE_URL}/patients`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` 
-          }
-        });
-
-        if (!response.ok) throw new Error("API not responding or unauthorized");
-        const data = await response.json();
-        
-        if (data && data.length > 0) {
-          const formattedPatients = data.map(p => ({
-            _id: p._id, 
-            patientId: p.patientId || "N/A",
-            fullName: p.fullName || "Unnamed Patient",
-            dob: p.dob ? p.dob.split('T')[0] : "", 
-            bloodGroup: p.bloodGroup || "N/A",
-            phone: p.phone || "N/A",
-            address: p.address || "N/A",
-            email: p.email || p.user?.email || "No email provided",
-            lastVisit: p.updatedAt || p.lastVisit || new Date().toISOString()
-          }));
-          setPatients(formattedPatients);
-        } else {
-          setPatients([]); 
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      
+      const response = await fetch(`${API_BASE_URL}/patients`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         }
-      } catch (error) {
-        console.error('Error fetching database records:', error);
-        setPatients([]); 
-      } finally {
-        setLoading(false);
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
       }
-    };
+
+      const resData = await response.json();
+      
+      // Safely extract array regardless of backend payload structure
+      const rawList = Array.isArray(resData)
+        ? resData
+        : Array.isArray(resData?.data)
+        ? resData.data
+        : Array.isArray(resData?.patients)
+        ? resData.patients
+        : [];
+
+      if (rawList.length > 0) {
+        const formattedPatients = rawList.map(p => ({
+          _id: p._id || p.id, 
+          patientId: p.patientId || "N/A",
+          fullName: p.fullName || p.name || "Unnamed Patient",
+          dob: p.dob ? String(p.dob).split('T')[0] : "", 
+          bloodGroup: p.bloodGroup || "N/A",
+          phone: p.phone || "N/A",
+          address: p.address || "N/A",
+          email: p.email || p.user?.email || "No email provided",
+          lastVisit: p.updatedAt || p.lastVisit || new Date().toISOString()
+        }));
+        setPatients(formattedPatients);
+      } else {
+        setPatients([]);
+      }
+    } catch (error) {
+      console.error('Error fetching database records:', error);
+      setPatients([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchPatients();
   }, []);
 
-  // Filter real records based on user search query matching
+  // Filter records based on user search query
   const filtered = patients.filter(p =>
     (p.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.patientId || '').toLowerCase().includes(searchQuery.toLowerCase())
+    (p.patientId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.phone || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Submit updates to persist changes into MongoDB storage with Auth Headers
+  // Submit updates to backend
   const handleEditSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       
       const response = await fetch(`${API_BASE_URL}/patients/${editPatient._id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           fullName: editPatient.fullName,
@@ -93,10 +118,9 @@ const Patients = () => {
 
       if (!response.ok) throw new Error("Failed to update profile values on backend");
 
-      // Update state array
+      // Update local state array
       setPatients(prev => prev.map(p => p._id === editPatient._id ? editPatient : p));
       
-      // Update details modal if currently viewing the modified patient
       if (selectedPatient && selectedPatient._id === editPatient._id) {
         setSelectedPatient(editPatient);
       }
@@ -119,7 +143,7 @@ const Patients = () => {
             placeholder="Search patients by name or ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-transparent py-1 outline-hidden text-base text-slate-800 placeholder-slate-400"
+            className="w-full bg-transparent py-1 outline-none text-base text-slate-800 placeholder-slate-400"
           />
         </div>
         <div className="text-base font-semibold text-slate-500">
@@ -153,7 +177,6 @@ const Patients = () => {
               </thead>
               <tbody className="text-base divide-y divide-slate-100 font-medium text-slate-700">
                 {filtered.map((p) => (
-                  // FIXED: key assigned to unique Database ID (_id) instead of nullable patientId
                   <tr key={p._id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="p-6 pl-8 text-[#078a72] font-bold font-mono tracking-tight text-lg">{p.patientId}</td>
                     <td className="p-6">
@@ -277,7 +300,7 @@ const Patients = () => {
                   type="text" 
                   value={editPatient.fullName}
                   onChange={e => setEditPatient(prev => ({ ...prev, fullName: e.target.value }))}
-                  className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-hidden text-base font-semibold text-slate-800"
+                  className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-none text-base font-semibold text-slate-800"
                   required
                 />
               </div>
@@ -288,7 +311,7 @@ const Patients = () => {
                   <select 
                     value={editPatient.bloodGroup}
                     onChange={e => setEditPatient(prev => ({ ...prev, bloodGroup: e.target.value }))}
-                    className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-hidden text-base font-semibold text-slate-800"
+                    className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-none text-base font-semibold text-slate-800"
                   >
                     {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map(bg => <option key={bg} value={bg}>{bg}</option>)}
                   </select>
@@ -299,7 +322,7 @@ const Patients = () => {
                     type="tel" 
                     value={editPatient.phone}
                     onChange={e => setEditPatient(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-hidden text-base font-semibold text-slate-800"
+                    className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-none text-base font-semibold text-slate-800"
                   />
                 </div>
               </div>
@@ -310,7 +333,7 @@ const Patients = () => {
                   type="date" 
                   value={editPatient.dob}
                   onChange={e => setEditPatient(prev => ({ ...prev, dob: e.target.value }))}
-                  className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-hidden text-base font-semibold text-slate-800"
+                  className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-none text-base font-semibold text-slate-800"
                   required
                 />
               </div>
@@ -321,7 +344,7 @@ const Patients = () => {
                   type="email" 
                   value={editPatient.email}
                   onChange={e => setEditPatient(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-hidden text-base font-semibold text-slate-800"
+                  className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-none text-base font-semibold text-slate-800"
                   disabled
                 />
               </div>
@@ -331,7 +354,7 @@ const Patients = () => {
                 <textarea 
                   value={editPatient.address}
                   onChange={e => setEditPatient(prev => ({ ...prev, address: e.target.value }))}
-                  className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-hidden text-base font-semibold text-slate-800 h-24 resize-none"
+                  className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#078a72] outline-none text-base font-semibold text-slate-800 h-24 resize-none"
                 />
               </div>
             </div>
