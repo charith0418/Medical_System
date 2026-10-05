@@ -3,7 +3,13 @@ import { FaPlusSquare, FaPhoneAlt, FaPrint, FaDownload, FaUserShield } from "rea
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Sanitize base URL by stripping trailing slashes or duplicate '/api'
+const rawUrl =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://medical-system-5fwx.onrender.com';
+
+const API_BASE_URL = rawUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
 
 const RegistrationPatient = () => {
   const initialFormState = {
@@ -63,6 +69,7 @@ const RegistrationPatient = () => {
       const generatedTempId = `PAT-${Math.floor(100000 + Math.random() * 900000)}`;
       const generatedTempQR = `MEDNET-VALIDATION-NODE-${generatedTempId}-${trimmedNic || Date.now()}`;
 
+      // Clean single /api/auth/register endpoint call
       const response = await axios.post(
         `${API_BASE_URL}/api/auth/register`,
         {
@@ -88,7 +95,7 @@ const RegistrationPatient = () => {
       );
 
       // Handle 200/201 success responses cleanly
-      if (response.data && (response.data.success || response.status === 201)) {
+      if (response.data && (response.data.success || response.status === 200 || response.status === 201)) {
         const serverPatient = response.data.patientProfile;
         const assignedId = serverPatient?.patientId || response.data?.user?.patientId || generatedTempId;
         
@@ -152,7 +159,7 @@ const RegistrationPatient = () => {
       
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
         
-        {/* 📋 PATIENT REGISTRATION FORM */}
+        {/* PATIENT REGISTRATION FORM */}
         <div className="xl:col-span-2 bg-white p-6 lg:p-8 rounded-2xl shadow-sm border border-slate-200 print:hidden">
           <div className="pb-4 border-b border-slate-100 mb-6 text-left">
             <h2 className="text-2xl font-black text-slate-950 tracking-wide">Hospital Admission Registry</h2>
@@ -335,7 +342,7 @@ const RegistrationPatient = () => {
                   placeholder="Enter physical residential locator details" 
                   onChange={handleChange} 
                   className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-base text-slate-950 focus:bg-white focus:ring-2 focus:ring-[#078a72] focus:outline-none transition-all" 
-                  required
+                  required 
                 />
               </div>
             </div>
@@ -354,7 +361,7 @@ const RegistrationPatient = () => {
           </form>
         </div>
 
-        {/* ==================== SMART CARD PREVIEW ==================== */}
+        {/* SMART CARD PREVIEW */}
         <div className="bg-white p-6 lg:p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between text-center min-h-[580px]">
           <div className="w-full flex flex-col items-center">
             <div className="pb-4 border-b border-slate-100 mb-6 text-left w-full print:hidden">
