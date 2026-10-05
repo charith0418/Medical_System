@@ -5,7 +5,7 @@ const Staff = require('../models/Staff');
 // ================= DASHBOARD STATS =================
 const getDashboardStats = async (req, res) => {
   try {
-    const totalPatients = await User.countDocuments({ role: 'Patient' });
+    const totalPatients = await User.countDocuments({ role: { $regex: /^patient$/i } });
     const totalDoctors = await Doctor.countDocuments();
     const totalStaff = await Staff.countDocuments();
 
@@ -51,7 +51,7 @@ const createDoctor = async (req, res) => {
       return res.status(400).json({ message: 'Email is required.' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = String(email).trim().toLowerCase();
     const existingUser = await User.findOne({ email: cleanEmail });
     if (existingUser) {
       return res.status(400).json({ message: 'Email is already registered.' });
@@ -61,10 +61,10 @@ const createDoctor = async (req, res) => {
     const cleanDoctorId = doctorId?.trim() || `DOC/${Math.floor(1000 + Math.random() * 9000)}`;
     const cleanSpecialty = specialization?.trim() || specialty?.trim() || 'General';
 
-    // 1. Create User account for login
+    // 1. Create User account for login (Default password: Doctor@123456)
     newUser = await User.create({
       email: cleanEmail,
-      password: password || 'Doctor@123456',
+      password: (password && String(password).trim().length > 0) ? String(password).trim() : 'Doctor@123456',
       role: 'Doctor',
       name: doctorName,
     });
@@ -152,13 +152,12 @@ const createStaff = async (req, res) => {
       return res.status(400).json({ message: 'Email is required.' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = String(email).trim().toLowerCase();
     const existingUser = await User.findOne({ email: cleanEmail });
     if (existingUser) {
       return res.status(400).json({ message: 'Email is already registered.' });
     }
 
-    // Name parsing fallback logic
     let cleanFirstName = firstName?.trim();
     let cleanLastName = lastName?.trim();
     if (!cleanFirstName && name) {
@@ -173,17 +172,17 @@ const createStaff = async (req, res) => {
     const cleanStaffId = staffId?.trim() || `STF/${Math.floor(1000 + Math.random() * 9000)}`;
     const cleanPhone = phone?.trim() || '0700000000';
     const cleanNic = nic?.trim() || `NIC-${Date.now()}`;
-    const cleanRole = role?.trim() || 'Staff'; // Title like Nurse, Pharmacist, etc.
+    const cleanRole = role?.trim() || 'Staff';
 
-    // 1. Create User account with role set explicitly to 'Staff' to satisfy User schema enum
+    // 1. Create User account (Default password: Staff@123456)
     newUser = await User.create({
       email: cleanEmail,
-      password: password || 'Staff@123456',
-      role: 'Staff', // FIXED: Pass base 'Staff' role for User authentication model
+      password: (password && String(password).trim().length > 0) ? String(password).trim() : 'Staff@123456',
+      role: 'Staff',
       name: `${cleanFirstName} ${cleanLastName}`,
     });
 
-    // 2. Create Staff profile saving the specific job role
+    // 2. Create Staff profile
     const newStaff = await Staff.create({
       user: newUser._id,
       staffId: cleanStaffId,
@@ -192,7 +191,7 @@ const createStaff = async (req, res) => {
       email: cleanEmail,
       phone: cleanPhone,
       nic: cleanNic,
-      role: cleanRole, // Job title (Nurse, Receptionist, etc.) stored in Staff model
+      role: cleanRole,
     });
 
     return res.status(201).json({ message: 'Staff created successfully', staff: newStaff });
@@ -215,7 +214,6 @@ const updateStaff = async (req, res) => {
     const updatedStaff = await Staff.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
     if (updatedStaff?.user) {
-      // FIXED: Ensure User model retains base 'Staff' role instead of title enum conflicts
       await User.findByIdAndUpdate(updatedStaff.user, {
         email: email || updatedStaff.email,
         role: 'Staff',
@@ -247,6 +245,12 @@ const deleteStaff = async (req, res) => {
 
 module.exports = {
   getDashboardStats,
-  getDoctors, createDoctor, updateDoctor, deleteDoctor,
-  getStaff, createStaff, updateStaff, deleteStaff,
+  getDoctors,
+  createDoctor,
+  updateDoctor,
+  deleteDoctor,
+  getStaff,
+  createStaff,
+  updateStaff,
+  deleteStaff,
 };

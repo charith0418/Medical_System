@@ -13,30 +13,34 @@ async function seedDB() {
     await mongoose.connect(mongoURI);
     console.log('Connected to MongoDB for safe seeding...');
 
-    const rawPassword = 'password123';
+    const defaultPassword = 'password123';
 
-    // 1. SEED ADMIN (Only if admin does not exist)
+    // 1. SEED ADMIN
     const existingAdmin = await User.findOne({ email: 'admin@example.com' });
     if (!existingAdmin) {
       const adminUser = new User({
         email: 'admin@example.com',
-        password: rawPassword,
-        role: 'Admin'
+        password: defaultPassword,
+        role: 'Admin',
+        name: 'System Administrator',
       });
       await adminUser.save();
-      console.log('🎉 Created Admin User login credentials.');
+      console.log('🎉 Created Admin: admin@example.com / password123');
+    } else {
+      console.log('ℹ️ Admin already exists: admin@example.com');
     }
 
-    // 2. SEED PATIENT (Only if sample patient does not exist)
+    // 2. SEED PATIENT
     const patientEmail = 'patient@example.com';
     const patientNic = '199512345678';
 
     const existingPatient = await User.findOne({ email: patientEmail });
     if (!existingPatient) {
       const patientUser = new User({
-        email: patientEmail.toLowerCase(),
-        password: rawPassword,
-        role: 'Patient'
+        email: patientEmail,
+        password: defaultPassword,
+        role: 'Patient',
+        name: 'John Doe',
       });
       const savedPatientUser = await patientUser.save();
 
@@ -53,37 +57,44 @@ async function seedDB() {
         phone: '0712345678',
         bloodGroup: 'O+',
         address: '123 Main Street, Colombo',
-        email: patientEmail.toLowerCase(),
-        password: rawPassword,
+        email: patientEmail,
         guardianName: 'Jane Doe',
         guardianPhone: '0771234567',
-        qrCodeData: qrData
+        qrCodeData: qrData,
       });
-      console.log('🎉 Created Patient Profile linked to Patient User.');
+      console.log('🎉 Created Patient: patient@example.com / password123');
+    } else {
+      console.log('ℹ️ Patient already exists: patient@example.com');
     }
 
-    // 3. SEED DOCTOR (Only if doctor does not exist)
+    // 3. SEED DOCTOR
     const existingDoctor = await User.findOne({ email: 'doctor@example.com' });
     if (!existingDoctor) {
       const doctorUser = new User({
         email: 'doctor@example.com',
-        password: rawPassword,
-        role: 'Doctor'
+        password: defaultPassword,
+        role: 'Doctor',
+        name: 'Dr. Jane Smith',
       });
       await doctorUser.save();
-      console.log('🎉 Created Doctor User login credentials.');
+      console.log('🎉 Created Doctor: doctor@example.com / password123');
+    } else {
+      console.log('ℹ️ Doctor already exists: doctor@example.com');
     }
 
-    // 4. SEED STAFF (Only if staff does not exist)
+    // 4. SEED STAFF
     const existingStaff = await User.findOne({ email: 'staff@example.com' });
     if (!existingStaff) {
       const staffUser = new User({
         email: 'staff@example.com',
-        password: rawPassword,
-        role: 'Staff'
+        password: defaultPassword,
+        role: 'Staff',
+        name: 'Staff Member',
       });
       await staffUser.save();
-      console.log('🎉 Created Staff User login credentials.');
+      console.log('🎉 Created Staff: staff@example.com / password123');
+    } else {
+      console.log('ℹ️ Staff already exists: staff@example.com');
     }
 
     console.log('\n🌟 Database check completed safely without wiping existing records!');
