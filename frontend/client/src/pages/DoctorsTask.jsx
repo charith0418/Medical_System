@@ -29,7 +29,7 @@ export default function DoctorsTask() {
   const token = localStorage.getItem("token");
   const authHeader = { headers: { Authorization: `Bearer ${token}` } };
 
-  // Fetch doctors from backend
+  // Fetch doctors from backend with full schema mapping
   const fetchDoctors = async () => {
     try {
       setLoading(true);
@@ -39,14 +39,14 @@ export default function DoctorsTask() {
         id: doc._id,
         _id: doc._id,
         doctorId: doc.doctorId || "N/A",
-        name: `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || doc.email,
+        name: doc.name || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || doc.email,
         firstName: doc.firstName || "",
         lastName: doc.lastName || "",
-        specialization: doc.specialization || "General",
+        specialization: doc.specialty || doc.specialization || "General",
         email: doc.email || "",
-        phone: doc.phone || "",
-        nic: doc.nic || "",
-        license: doc.medicalLicenseNo || "",
+        phone: doc.phone || "N/A",
+        nic: doc.nic || "N/A",
+        license: doc.medicalLicenseNo || doc.license || "N/A",
       }));
       setDoctors(formatted);
     } catch (err) {
@@ -152,10 +152,10 @@ export default function DoctorsTask() {
 
   return (
     <div className="flex min-h-screen bg-gray-100 w-full overflow-x-hidden">
-      {/* Sidebar - Fixed width */}
+      {/* Sidebar */}
       <AdminSidebar />
 
-      {/* Main Content Area - Expands properly to fill container */}
+      {/* Main Content Area */}
       <main className="flex-1 min-w-0 p-6 md:p-8 overflow-y-auto">
         <AdminNavbar admin={{ name: "Admin" }} />
 
@@ -182,14 +182,17 @@ export default function DoctorsTask() {
           </button>
         </div>
 
-        {/* Search & Summary */}
+        {/* Search & Filter */}
         <div className="mt-6">
           <div className="flex justify-between">
             <input
               type="text"
               placeholder="Search by ID, Name or Specialization..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full md:w-96 px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -216,7 +219,7 @@ export default function DoctorsTask() {
           )}
         </div>
 
-        {/* Pagination Buttons */}
+        {/* Pagination Controls */}
         {!loading && !error && (
           <div className="flex justify-between items-center mt-6">
             <button
