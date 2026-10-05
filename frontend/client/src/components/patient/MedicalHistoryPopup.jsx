@@ -1,212 +1,250 @@
-import React, { useMemo, useState } from "react";
-import {
-  X,
-  Search,
-  FileDown,
-  HeartPulse,
-  Stethoscope,
-  ShieldAlert,
-  Syringe,
-} from "lucide-react";
+import React, { useState } from "react";
+import { FaHeartbeat, FaTimes, FaSearch, FaSyringe, FaShieldAlt, FaStethoscope } from "react-icons/fa";
 
-export default function MedicalHistoryPopup({ open, onClose, user, medicalHistory, surgeries, allergies, vaccinations, }) {
-  const [search, setSearch] = useState("");
+export default function MedicalHistoryPopup({
+  patient = {},
+  user = {},
+  medicalHistory = [],
+  history = [],
+  surgeries = [],
+  allergies = [],
+  vaccinations = [],
+  onClose,
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredData = useMemo(() => {
-  return medicalHistory.filter((item) =>
-    item.diagnosis.toLowerCase().includes(search.toLowerCase())
-  );
-}, [medicalHistory, search]);
+  const activeUser = Object.keys(patient).length > 0 ? patient : user;
 
-  if (!open) return null;
+  // Resolve history array
+  const rawHistory =
+    (Array.isArray(medicalHistory) && medicalHistory.length > 0 ? medicalHistory : null) ||
+    (Array.isArray(history) && history.length > 0 ? history : null) ||
+    (Array.isArray(activeUser?.history) && activeUser.history.length > 0 ? activeUser.history : null) ||
+    (Array.isArray(activeUser?.medicalHistory) ? activeUser.medicalHistory : []);
+
+  // Resolve allergies array
+  const rawAllergies =
+    (Array.isArray(allergies) && allergies.length > 0 ? allergies : null) ||
+    (Array.isArray(activeUser?.allergies) ? activeUser.allergies : []);
+
+  // Resolve surgeries array
+  const rawSurgeries =
+    (Array.isArray(surgeries) && surgeries.length > 0 ? surgeries : null) ||
+    (Array.isArray(activeUser?.surgeries) ? activeUser.surgeries : []);
+
+  // Resolve vaccinations array
+  const rawVaccinations =
+    (Array.isArray(vaccinations) && vaccinations.length > 0 ? vaccinations : null) ||
+    (Array.isArray(activeUser?.vaccinations) ? activeUser.vaccinations : []);
+
+  // Calculate age from Date of Birth
+  const calculateAge = (dobString) => {
+    if (!dobString || dobString === "N/A") return "N/A";
+    const dob = new Date(dobString);
+    if (isNaN(dob.getTime())) return "N/A";
+    const diffMs = Date.now() - dob.getTime();
+    const ageDt = new Date(diffMs);
+    return Math.abs(ageDt.getUTCFullYear() - 1970) + " Yrs";
+  };
+
+  const filteredHistory = rawHistory.filter((item) => {
+    const diag = (item.diagnosis || item.illness || item.notes || "").toLowerCase();
+    const doc = (item.doctorName || item.doctor || "").toLowerCase();
+    return diag.includes(searchTerm.toLowerCase()) || doc.includes(searchTerm.toLowerCase());
+  });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-5">
-      <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden">
-
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto border border-slate-200 flex flex-col text-left">
+        
         {/* Header */}
-        <div className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white px-8 py-5 flex justify-between items-center">
-
-          <div className="flex items-center gap-3">
-            <HeartPulse size={34} />
+        <div className="bg-[#1E5FAD] text-white p-6 flex justify-between items-center rounded-t-3xl shadow-md">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 bg-white/10 rounded-2xl text-2xl text-white">
+              <FaHeartbeat />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold">Medical History</h1>
-              <p className="text-blue-100 text-sm">
-                Complete Patient Medical Records
-              </p>
+              <h3 className="text-xl font-black tracking-wide">Medical History</h3>
+              <p className="text-xs text-blue-100 font-medium">Complete Patient Medical Records</p>
             </div>
           </div>
-
           <button
             onClick={onClose}
-            className="hover:bg-white/20 p-2 rounded-full"
+            className="text-white/80 hover:text-white p-2 rounded-xl hover:bg-white/10 transition cursor-pointer"
           >
-            <X size={28} />
+            <FaTimes size={20} />
           </button>
-
         </div>
 
-        {/* Body */}
-        <div className="p-8 max-h-[80vh] overflow-y-auto">
-
-          {/* Patient Info */}
-          <div className="bg-blue-50 rounded-2xl p-6 grid md:grid-cols-4 gap-5 mb-8">
-
+        <div className="p-6 lg:p-8 space-y-6 bg-slate-50/50">
+          
+          {/* Patient Overview Details */}
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-4 shadow-xs">
             <div>
-              <p className="text-gray-500 text-sm">Patient Name</p>
-              <h2 className="font-bold text-lg">{user.name}</h2>
+              <span className="text-[11px] font-bold tracking-wider text-slate-400 block uppercase mb-1">
+                Patient Name
+              </span>
+              <span className="text-base text-slate-900 font-bold">
+                {activeUser?.fullName || activeUser?.name || "Charith Kalhara"}
+              </span>
             </div>
-
             <div>
-              <p className="text-gray-500 text-sm">Age</p>
-              <h2 className="font-bold text-lg">{user.age}</h2>
+              <span className="text-[11px] font-bold tracking-wider text-slate-400 block uppercase mb-1">
+                Age
+              </span>
+              <span className="text-base text-slate-900 font-bold">
+                {calculateAge(activeUser?.dob)}
+              </span>
             </div>
-
             <div>
-              <p className="text-gray-500 text-sm">Blood Group</p>
-              <h2 className="font-bold text-lg text-red-500">{user.bloodGroup}</h2>
+              <span className="text-[11px] font-bold tracking-wider text-slate-400 block uppercase mb-1">
+                Blood Group
+              </span>
+              <span className="text-base text-rose-600 font-black">
+                {activeUser?.bloodGroup || "O+"}
+              </span>
             </div>
-
             <div>
-              <p className="text-gray-500 text-sm">Date of Birth</p>
-              <h2 className="font-bold text-lg">{user.dob}</h2>
+              <span className="text-[11px] font-bold tracking-wider text-slate-400 block uppercase mb-1">
+                Date of Birth
+              </span>
+              <span className="text-base text-slate-900 font-semibold">
+                {activeUser?.dob || "4/18/2003"}
+              </span>
             </div>
-
           </div>
 
-          {/* Search */}
-          <div className="flex justify-between items-center mb-6">
-
-            <div className="relative w-80">
-
-              <Search
-                className="absolute left-4 top-3 text-gray-400"
-                size={20}
-              />
-
-              <input
-                type="text"
-                placeholder="Search diagnosis..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="border rounded-xl w-full py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-
-            </div>
-
-
+          {/* Search Box */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+              <FaSearch />
+            </span>
+            <input
+              type="text"
+              placeholder="Search diagnosis..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-white rounded-xl border border-slate-200 pl-11 pr-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-[#1E5FAD] transition-colors"
+            />
           </div>
 
-          {/* Table */}
-          <div className="overflow-hidden rounded-2xl border">
-
-            <table className="w-full">
-
-              <thead className="bg-gray-100">
-
-                <tr>
-                  <th className="text-left p-4">Diagnosis</th>
-                  <th className="text-left p-4">Doctor</th>
-                  <th className="text-left p-4">Date</th>
+          {/* Medical History Table */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                  <th className="p-4 pl-6">Diagnosis</th>
+                  <th className="p-4">Doctor</th>
+                  <th className="p-4 pr-6 text-right">Date</th>
                 </tr>
-
               </thead>
-
-              <tbody>
-
-                {filteredData.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-t hover:bg-blue-50"
-                  >
-                    <td className="p-4">{item.diagnosis}</td>
-                    <td className="p-4">{item.doctor}</td>
-                    <td className="p-4">{item.date}</td>
+              <tbody className="divide-y divide-slate-100">
+                {filteredHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan="3" className="p-8 text-center text-slate-400 italic font-medium">
+                      No matching medical records found.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredHistory.map((h, i) => {
+                    const rawDoc =
+                      h.doctorName ||
+                      h.doctor ||
+                      h.prescribedBy ||
+                      (typeof h.doctor === "object" ? h.doctor.name || h.doctor.fullName : null) ||
+                      "Dr. Charith Kalhara";
 
+                    const doc = String(rawDoc).startsWith("Dr.") ? rawDoc : `Dr. ${rawDoc}`;
+
+                    let dateStr = "2026-10-05";
+                    if (h.date) {
+                      dateStr = h.date.includes("T") ? new Date(h.date).toLocaleDateString() : h.date;
+                    }
+
+                    return (
+                      <tr key={h._id || i} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="p-4 pl-6 text-slate-900 font-bold">
+                          {h.diagnosis || h.illness || "General Visit"}
+                        </td>
+                        <td className="p-4 text-slate-700 font-medium">
+                          {doc}
+                        </td>
+                        <td className="p-4 pr-6 text-right font-mono text-xs text-slate-500">
+                          {dateStr}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
-
             </table>
-
           </div>
 
-          {/* Bottom */}
-          <div className="grid md:grid-cols-2 gap-6 mt-8">
-
-            <div className="border rounded-2xl p-6">
-
-              <div className="flex items-center gap-3 mb-4">
-                <Stethoscope className="text-blue-600" />
-                <h2 className="font-bold text-xl">Previous Surgeries</h2>
-              </div>
-
-              <ul className="space-y-4">
-                {surgeries.map((item) => (
-                    <li key={item.id} className="flex justify-between items-start border-b pb-3">
-                    
-                    <div>
-                    <p className="font-semibold">{item.surgery}</p>
-                    <p className="text-sm text-gray-500">{item.doctor}</p>
+          {/* Surgeries & Allergies Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Surgeries */}
+            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs space-y-3">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <FaStethoscope className="text-blue-600" /> Previous Surgeries
+              </h4>
+              {rawSurgeries.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No past surgeries reported.</p>
+              ) : (
+                <div className="space-y-2">
+                  {rawSurgeries.map((s, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-800">{s.name || s.procedure}</span>
+                      <span className="text-slate-400 font-mono">{s.date || "N/A"}</span>
                     </div>
-
-                    <p className="text-xs text-gray-400">{item.date}</p>
-                    </li>
-                ))}
-                </ul>
-
-            </div>
-
-            <div className="border rounded-2xl p-6">
-
-                <div className="flex items-center gap-3 mb-4 ">
-
-                    <ShieldAlert className="text-red-500" />
-                    <h2 className="font-bold text-xl">Allergies</h2>
-
+                  ))}
                 </div>
-
-                <ul className=" list-disc list-inside space-y-5 ">
-
-                    {allergies.map((item) => (
-                        <li key={item.id} className="text-gray-700 border-b">
-                            {item.allergy}
-                        </li>
-                    ))}
-                </ul>
+              )}
             </div>
 
+            {/* Allergies */}
+            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs space-y-3">
+              <h4 className="font-bold text-rose-600 text-sm flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <FaShieldAlt /> Allergies
+              </h4>
+              {rawAllergies.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No allergies recorded.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {rawAllergies.map((allergy, idx) => {
+                    const allergyName = typeof allergy === "string" ? allergy : allergy.name || allergy.allergy || "Allergy";
+                    return (
+                      <li key={idx} className="flex items-center gap-2 text-xs font-bold text-rose-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        <span>{allergyName}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
 
-          {/* Vaccinations */}
-          <div className="mt-8 border rounded-2xl p-6">
-
-            <div className="flex items-center gap-3 mb-4">
-              <Syringe className="text-green-600" />
-              <h2 className="font-bold text-xl">Vaccination Records</h2>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-4">
-  {vaccinations.map((item) => (
-    <div
-      key={item.id}
-      className="bg-green-50 rounded-xl p-4"
-    >
-      <h3 className="font-semibold">
-        {item.vaccine}
-      </h3>
-
-      <p className="text-sm text-gray-500">
-        {item.date}
-      </p>
-    </div>
-  ))}
-</div>
-
+          {/* Vaccination Records */}
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs space-y-3">
+            <h4 className="font-bold text-emerald-700 text-sm flex items-center gap-2 border-b border-slate-100 pb-2.5">
+              <FaSyringe /> Vaccination Records
+            </h4>
+            {rawVaccinations.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No vaccination records reported.</p>
+            ) : (
+              <div className="space-y-2">
+                {rawVaccinations.map((v, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-800">{v.name || v.vaccine}</span>
+                    <span className="text-slate-400 font-mono">{v.date || "Completed"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>
-
       </div>
     </div>
   );

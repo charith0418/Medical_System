@@ -127,10 +127,10 @@ export default function Dashboard({ onLogout }) {
           (Array.isArray(userObj.allergies) && userObj.allergies.length > 0 ? userObj.allergies : null) ||
           [];
 
-        const patId = userObj.patientId || rawProfile.patientId || data.patientId;
-        const patEmail = userObj.email || rawProfile.email || data.email;
+        const patId = userObj.patientId || rawProfile.patientId || data.patientId || "PAT-348741";
+        const patEmail = userObj.email || rawProfile.email || data.email || "kalharacharith69@gmail.com";
 
-        // 5. Direct DB sync fallback: If history/prescriptions came back empty, query /patients
+        // 5. Direct DB sync fallback: If records came back empty, query /patients
         if (resolvedHistory.length === 0 || resolvedPrescriptions.length === 0 || resolvedAllergies.length === 0) {
           try {
             let patientDoc = null;
@@ -177,9 +177,9 @@ export default function Dashboard({ onLogout }) {
 
         // Map User Profile Details & attach allergies for PersonalInfo card
         const formattedUser = {
-          name: userObj.fullName || userObj.name || rawProfile.fullName || "Patient",
-          fullName: userObj.fullName || userObj.name || rawProfile.fullName || "Patient",
-          patientId: patId || "PAT-348741",
+          name: userObj.fullName || userObj.name || rawProfile.fullName || "Charith Kalhara",
+          fullName: userObj.fullName || userObj.name || rawProfile.fullName || "Charith Kalhara",
+          patientId: patId,
           nic: userObj.nic || rawProfile.nic || "N/A",
           bloodGroup: userObj.bloodGroup || rawProfile.bloodGroup || "O+",
           dob: userObj.dob
@@ -188,7 +188,7 @@ export default function Dashboard({ onLogout }) {
             ? new Date(rawProfile.dob).toLocaleDateString()
             : "4/18/2003",
           phone: userObj.phone || rawProfile.phone || "0754660204",
-          email: patEmail || "kalharacharith69@gmail.com",
+          email: patEmail,
           address: userObj.address || rawProfile.address || "1450 Biscayne Blvd, Miami, FL 33132",
           gender: userObj.gender || rawProfile.gender || "Male",
           profileImage: userObj.profileImage || "",
@@ -197,7 +197,7 @@ export default function Dashboard({ onLogout }) {
         };
 
         const formattedEmergencyContact = data.emergencyContact || rawProfile.emergencyContact || {
-          name: rawProfile.guardianName || "Guardian",
+          name: rawProfile.guardianName || "Charith Kalhara",
           relationship: "Guardian",
           phone: rawProfile.guardianPhone || "0754660204",
         };
@@ -221,7 +221,7 @@ export default function Dashboard({ onLogout }) {
     fetchDashboardData();
   }, []);
 
-  // Handle Menu Options
+  // Handle Sidebar Menu Options
   const handleMenuClick = (menu) => {
     setActiveTab(menu);
     if (menu === "Dashboard" || menu === "Health Card") {
@@ -291,7 +291,7 @@ export default function Dashboard({ onLogout }) {
         {/* Health Card & Personal Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <HealthCard user={user} />
-          <PersonalInfo user={user} />
+          <PersonalInfo user={user} allergies={allergies} />
         </div>
 
         {/* Diagnosis / Medical History & Active Prescriptions */}
@@ -323,21 +323,14 @@ export default function Dashboard({ onLogout }) {
       {/* Medical History Modal */}
       {medicalHistoryOpen && (
         <MedicalHistoryPopup
-          open={medicalHistoryOpen}
           onClose={() => {
             setMedicalHistoryOpen(false);
             setActiveTab("Dashboard");
           }}
-          patient={{
-            ...user,
-            history: medicalHistory,
-            medicalHistory: medicalHistory,
-            surgeries: surgeries,
-            allergies: allergies,
-            vaccinations: vaccinations,
-          }}
+          patient={user}
           user={user}
           medicalHistory={medicalHistory}
+          history={medicalHistory}
           surgeries={surgeries}
           allergies={allergies}
           vaccinations={vaccinations}
@@ -347,18 +340,14 @@ export default function Dashboard({ onLogout }) {
       {/* Prescriptions Modal */}
       {prescriptionOpen && (
         <PrescriptionPopup
-          open={prescriptionOpen}
           onClose={() => {
             setPrescriptionOpen(false);
             setActiveTab("Dashboard");
           }}
-          patient={{
-            ...user,
-            prescriptions: prescriptions,
-            medications: prescriptions,
-          }}
+          patient={user}
           user={user}
           prescriptions={prescriptions}
+          medications={prescriptions}
         />
       )}
     </div>

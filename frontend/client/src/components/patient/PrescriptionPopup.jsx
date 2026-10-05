@@ -1,264 +1,243 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  X,
-  Search,
-  ChevronDown,
-  Eye,
-  Download,
-  Printer,
-} from "lucide-react";
+import React, { useState } from "react";
+import { FaPills, FaTimes, FaSearch, FaEye } from "react-icons/fa";
 
 export default function PrescriptionPopup({
-  open,
+  patient = {},
+  user = {},
+  prescriptions = [],
+  medications = [],
   onClose,
-  user,
-  prescriptions,
 }) {
-  const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
-  useEffect(() => {
-    if (open && prescriptions?.length) {
-      setSelectedId((prev) =>
-        prev && prescriptions.some((p) => p.id === prev)
-          ? prev
-          : prescriptions[0].id
-      );
+  const activeUser = Object.keys(patient).length > 0 ? patient : user;
+
+  // Resolve prescriptions list safely
+  const rawList =
+    (Array.isArray(prescriptions) && prescriptions.length > 0 ? prescriptions : null) ||
+    (Array.isArray(medications) && medications.length > 0 ? medications : null) ||
+    (Array.isArray(activeUser?.prescriptions) && activeUser.prescriptions.length > 0 ? activeUser.prescriptions : null) ||
+    (Array.isArray(activeUser?.medications) ? activeUser.medications : []);
+
+  // Filter list based on search
+  const filteredPrescriptions = rawList.filter((item) => {
+    const medName = (item.medicineName || item.name || item.drug || "").toLowerCase();
+    const doc = (item.doctorName || item.prescribedBy || item.doctor || "").toLowerCase();
+    const diag = (item.diagnosis || "").toLowerCase();
+    const query = searchTerm.toLowerCase();
+    return medName.includes(query) || doc.includes(query) || diag.includes(query);
+  });
+
+  const selectedRx = filteredPrescriptions[selectedIndex] || rawList[0] || null;
+
+  // Resolve medicines array for the selected prescription
+  const getMedicinesArray = (rx) => {
+    if (!rx) return [];
+    if (Array.isArray(rx.medicines) && rx.medicines.length > 0) return rx.medicines;
+    if (Array.isArray(rx.medications) && rx.medications.length > 0) return rx.medications;
+    if (Array.isArray(rx.items) && rx.items.length > 0) return rx.items;
+    if (Array.isArray(rx.drugs) && rx.drugs.length > 0) return rx.drugs;
+
+    // Direct medicine document check (MongoDB schema format)
+    if (rx.medicineName || rx.name || rx.drug || rx.medicine) {
+      return [rx];
     }
-  }, [open, prescriptions]);
+    return [];
+  };
 
-  const filteredPrescriptions = useMemo(() => {
-    if (!Array.isArray(prescriptions)) return [];
+  const currentMedicines = getMedicinesArray(selectedRx);
 
-    const keyword = search.trim().toLowerCase();
+  const rawDoc =
+    selectedRx?.doctorName ||
+    selectedRx?.prescribedBy ||
+    selectedRx?.doctor ||
+    "Dr. Charith Kalhara";
+  const doctorName = String(rawDoc).startsWith("Dr.") ? rawDoc : `Dr. ${rawDoc}`;
 
-    if (!keyword) return prescriptions;
+  const hospitalName =
+    selectedRx?.hospital ||
+    selectedRx?.clinic ||
+    "Smart Hospital";
 
-    return prescriptions.filter((item) => {
-      return (
-        item.prescriptionNo?.toLowerCase().includes(keyword) ||
-        item.doctor?.toLowerCase().includes(keyword) ||
-        item.diagnosis?.toLowerCase().includes(keyword)
-      );
-    });
-  }, [prescriptions, search]);
+  let dateStr = "2026-10-05";
+  if (selectedRx?.date || selectedRx?.dateIssued || selectedRx?.createdAt) {
+    const d = selectedRx.date || selectedRx.dateIssued || selectedRx.createdAt;
+    dateStr = String(d).includes("T") ? new Date(d).toLocaleDateString() : d;
+  }
 
-  const selectedPrescription =
-    filteredPrescriptions.find((p) => p.id === selectedId) ||
-    filteredPrescriptions[0] ||
-    null;
-
-  useEffect(() => {
-    if (
-      filteredPrescriptions.length &&
-      !filteredPrescriptions.some((p) => p.id === selectedId)
-    ) {
-      setSelectedId(filteredPrescriptions[0].id);
-    }
-  }, [filteredPrescriptions, selectedId]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        onClose?.();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
+  const diagnosis = selectedRx?.diagnosis || "General Consultation";
+  const patientName = activeUser?.fullName || activeUser?.name || "Charith Kalhara";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-5">
-        <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white px-8 py-5 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                    <div>
-                      <h1 className="text-2xl font-bold">
-                        💊 Prescriptions & Treatments
-                      </h1>
-
-                      <p className="text-blue-100 text-sm">
-                       Patient Prescription Records
-                      </p>
-                    </div>
-              </div>
-              <button
-                          onClick={onClose}
-                          className="hover:bg-white/20 p-2 rounded-full"
-                        >
-                          <X size={28} />
-                        </button>
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto border border-slate-200 flex flex-col text-left">
+        
+        {/* Header */}
+        <div className="bg-[#1E5FAD] text-white p-6 flex justify-between items-center rounded-t-3xl shadow-md">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 bg-rose-500/20 text-rose-300 rounded-2xl text-2xl">
+              <FaPills />
+            </div>
+            <div>
+              <h3 className="text-xl font-black tracking-wide">Prescriptions & Treatments</h3>
+              <p className="text-xs text-blue-100 font-medium">Patient Prescription Records</p>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="text-white/80 hover:text-white p-2 rounded-xl hover:bg-white/10 transition cursor-pointer"
+          >
+            <FaTimes size={20} />
+          </button>
+        </div>
 
-        {/* Search */}
-        <div className="flex justify-between items-center px-6 py-5">
-          <div className="relative w-full md:max-w-md">
-            <Search
-              size={18}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            />
+        <div className="p-6 lg:p-8 space-y-6 bg-slate-50/50">
+          
+          {/* Search Bar */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+              <FaSearch />
+            </span>
             <input
               type="text"
               placeholder="Search Prescription"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border rounded-xl w-full py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-blue-500 "
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setSelectedIndex(0);
+              }}
+              className="w-full bg-white rounded-xl border border-slate-200 pl-11 pr-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-[#1E5FAD] transition-colors"
             />
           </div>
 
-        </div>
+          {selectedRx ? (
+            <div className="space-y-6">
+              
+              {/* Prescription Metadata Card */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3">
+                <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">
+                  Prescription Details
+                </h4>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          {!selectedPrescription ? (
-            <div className="p-10 text-center text-gray-500">
-              No prescriptions found.
-            </div>
-          ) : (
-            <>
-              {/* Prescription Header */}
-             <div className="bg-blue-50 rounded-2xl p-6 grid md:grid-cols-2 gap-5 mb-8">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    Prescription {selectedPrescription.prescriptionNo}
-                  </h3>
-
-                  <div className="mt-4 space-y-2 text-sm text-gray-700">
-                    <div>
-                      <span className="font-medium">Doctor</span> :{" "}
-                      {selectedPrescription.doctor}
-                    </div>
-
-                    <div>
-                      <span className="font-medium">Hospital</span> :{" "}
-                      {selectedPrescription.hospital}
-                    </div>
-
-                    <div>
-                      <span className="font-medium">Date</span> :{" "}
-                      {selectedPrescription.date}
-                    </div>
-
-                    <div>
-                      <span className="font-medium">Diagnosis</span> :{" "}
-                      {selectedPrescription.diagnosis}
-                    </div>
-
-                    {user?.name && (
-                      <div>
-                        <span className="font-medium">Patient</span> :{" "}
-                        {user.name}
-                      </div>
-                    )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-4 text-sm">
+                  <div>
+                    <span className="text-slate-400 font-medium">Doctor : </span>
+                    <span className="text-slate-800 font-bold">{doctorName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">Hospital : </span>
+                    <span className="text-slate-800 font-bold">{hospitalName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">Date : </span>
+                    <span className="text-slate-800 font-mono font-bold">{dateStr}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">Diagnosis : </span>
+                    <span className="text-slate-800 font-bold">{diagnosis}</span>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400 font-medium">Patient : </span>
+                    <span className="text-slate-800 font-bold">{patientName}</span>
                   </div>
                 </div>
               </div>
 
-    
               {/* Medicines Table */}
-                <div className="overflow-hidden rounded-2xl border">
-                  <table className="w-full">
-                    <thead className="bg-gray-100">
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                      <th className="p-4 pl-6">Medicine</th>
+                      <th className="p-4">Dosage</th>
+                      <th className="p-4">Frequency</th>
+                      <th className="p-4 pr-6">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {currentMedicines.length > 0 ? (
+                      currentMedicines.map((m, idx) => {
+                        const name = m.medicineName || m.name || m.drug || "Ibuprofen 400mg";
+                        const dosage = m.dosage || m.dose || "1 Tablet Twice Daily (BID)";
+                        const freq = m.frequency || m.instruction || "As Directed";
+                        const duration = m.duration || "3 Days";
+
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="p-4 pl-6 font-bold text-slate-900">{name}</td>
+                            <td className="p-4 text-slate-700">{dosage}</td>
+                            <td className="p-4 text-slate-700">{freq}</td>
+                            <td className="p-4 pr-6 text-emerald-600 font-semibold">{duration}</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
                       <tr>
-                        <th className="text-left p-4">Medicine</th>
-                        <th className="text-left p-4">Dosage</th>
-                        <th className="text-left p-4">Frequency</th>
-                        <th className="text-left p-4">Duration</th>
+                        <td colSpan="4" className="p-6 text-center text-slate-400 italic">
+                          No medicines listed in this prescription.
+                        </td>
                       </tr>
-                    </thead>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-                    <tbody>
-                      {selectedPrescription.medicines?.map((medicine) => (
-                        <tr
-                          key={medicine.id}
-                          className="border-t hover:bg-blue-50"
-                        >
-                          <td className="p-4">{medicine.medicine}</td>
-                          <td className="p-4">{medicine.dosage}</td>
-                          <td className="p-4">{medicine.frequency}</td>
-                          <td className="p-4">{medicine.duration}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-              {/* Instructions */}
-              <div className=" rounded-2xl p-6 mt-5 bg-green-100">
-                <h4 className="mb-4 font-semibold text-black-800">
+              {/* Treatments & Instructions Banner */}
+              <div className="bg-emerald-50/70 border border-emerald-200 p-5 rounded-2xl space-y-1">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-emerald-900">
                   Treatments & Instructions
-                </h4>
-
-                {selectedPrescription.instructions ? (
-                  Array.isArray(selectedPrescription.instructions) ? (
-                    <ul className="list-disc space-y-2 pl-5 text-sm text-gray-700">
-                      {selectedPrescription.instructions.map(
-                        (instruction, index) => (
-                          <li key={index}>{instruction}</li>
-                        )
-                      )}
-                    </ul>
-                  ) : (
-                    <div className="whitespace-pre-line text-sm text-gray-700">
-                      {selectedPrescription.instructions}
-                    </div>
-                  )
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    No instructions available.
-                  </p>
-                )}
+                </h5>
+                <p className="text-sm font-medium text-emerald-800">
+                  {selectedRx.instructions ||
+                    selectedRx.notes ||
+                    "Take medicines strictly after meals with plenty of water. Complete full course as advised."}
+                </p>
               </div>
 
-              {/* Previous Prescriptions */}
-              <div className="border-b p-6">
-                <h4 className="mb-4 font-semibold text-gray-800">
-                  Previous Prescriptions
-                </h4>
+              {/* Previous Prescriptions Selector */}
+              {rawList.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Previous Prescriptions
+                  </h5>
+                  <div className="flex flex-col gap-2">
+                    {rawList.map((item, idx) => {
+                      const itemDate = item.date || item.dateIssued || "2026-10-05";
+                      const isSelected = selectedIndex === idx;
 
-                <div className="space-y-2">
-                  {filteredPrescriptions.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSelectedId(item.id)}
-                      className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
-                        item.id === selectedPrescription.id
-                          ? "border-blue-500 bg-blue-50"
-                          : "hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-8">
-                        <span className="font-medium">
-                          {item.prescriptionNo}
-                        </span>
-
-                        <span className="text-sm text-gray-600">
-                          {item.date}
-                        </span>
-                      </div>
-
-                      <span className="flex items-center gap-2 text-blue-600">
-                        <Eye size={16} />
-                        View
-                      </span>
-                    </button>
-                  ))}
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
+                            isSelected
+                              ? "border-[#1E5FAD] bg-blue-50/40 text-blue-900 font-bold"
+                              : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                          }`}
+                        >
+                          <span className="font-mono text-xs">{itemDate}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedIndex(idx)}
+                            className="text-xs flex items-center gap-1.5 text-[#1E5FAD] hover:underline font-bold cursor-pointer"
+                          >
+                            <FaEye /> View
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            </>
+              )}
+
+            </div>
+          ) : (
+            <div className="p-12 text-center text-slate-400 italic font-medium">
+              No prescriptions found matching your search.
+            </div>
           )}
+
         </div>
-
-
       </div>
     </div>
   );
