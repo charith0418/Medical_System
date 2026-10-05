@@ -6,15 +6,15 @@ const PatientProfile = require('../models/PatientProfile');
 exports.addPrescription = async (req, res) => {
   try {
     const { 
-      patientId,      // PAT-XXXXXX string OR MongoDB _id sent from frontend
+      patientId,     
       doctorName, 
       hospital, 
       diagnosis, 
       medications, 
-      medicines       // Fallback payload key
+      medicines       
     } = req.body;
 
-    // 1. Resolve Patient MongoDB _id
+    // 1. Resolve mongo db id
     let patientObjId = null;
 
     if (patientId && mongoose.Types.ObjectId.isValid(patientId)) {
@@ -32,11 +32,11 @@ exports.addPrescription = async (req, res) => {
       });
     }
 
-    // 2. Auto-generate prescriptionId (e.g., RX-749201)
+    // Auto-generate prescriptionid
     const randomHex = Math.floor(100000 + Math.random() * 900000);
     const generatedRxId = `RX-${randomHex}`;
 
-    // 3. Normalise medication items
+    // Normalise medication items
     const rawList = medications || medicines || [];
     const formattedMedications = rawList.map(item => ({
       name: item.name || item.medicineName || item.drug || "Prescribed Medicine",
@@ -45,7 +45,7 @@ exports.addPrescription = async (req, res) => {
       duration: item.duration || ""
     }));
 
-    // 4. Build and save document
+    // Build and save document
     const newPrescription = new Prescription({
       patient: patientObjId,
       prescriptionId: generatedRxId,
@@ -97,7 +97,7 @@ exports.getPrescriptions = async (req, res) => {
   }
 };
 
-// GET /api/prescriptions/patient/:patientId OR /api/prescriptions/:patientId
+// GET /api/prescriptions/patient/patientId 
 exports.getPrescriptionsByPatient = async (req, res) => {
   try {
     const { patientId } = req.params;

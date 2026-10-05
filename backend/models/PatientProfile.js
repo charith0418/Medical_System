@@ -87,7 +87,7 @@ const PatientProfileSchema = new mongoose.Schema({
     required: true 
   },
 
-  // Sub-documents for patient visit medical archive & medication logs
+ 
   history: [VisitHistorySchema],
   prescriptions: [PrescriptionItemSchema],
   allergies: [{ type: String, trim: true }]

@@ -2,10 +2,10 @@ const mongoose = require('mongoose');
 
 const medicationItemSchema = new mongoose.Schema({
     medicineName: { type: String },
-    name: { type: String }, // Fallback alias
+    name: { type: String }, 
     dosage: { type: String },
-    dose: { type: String },   // Fallback alias
-    amount: { type: String }, // Fallback alias
+    dose: { type: String },   
+    amount: { type: String }, 
     frequency: { type: String },
     duration: { type: String }
 }, { _id: true });
@@ -25,11 +25,11 @@ const prescriptionSchema = new mongoose.Schema({
     // Array of medication objects
     medications: [medicationItemSchema],
     
-    // Alias array for backward compatibility with components looking for "medicines"
+    
     medicines: [medicationItemSchema]
 }, { timestamps: true });
 
-// Pre-save middleware to synchronize 'medications' and 'medicines' fields
+
 prescriptionSchema.pre('save', function (next) {
     if (this.medications && this.medications.length > 0) {
         // Ensure medicineName and name are normalized across all items

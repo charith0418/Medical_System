@@ -6,13 +6,12 @@ const mongoose = require('mongoose');
 const Patient = require('../models/PatientProfile');
 const User = require('../models/User');
 
-// Centralized Middleware Import
 const { protect, patientOnly } = require('../middleware/authMiddleware');
 
-// ==========================================
-// 1. GET ALL PATIENTS
-// Route: GET /api/patient
-// ==========================================
+
+
+//Route: GET /api/patient
+
 router.get('/', protect, async (req, res) => {
   try {
     const patients = await Patient.find({})
@@ -26,10 +25,10 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-// ==========================================
-// 2. SEARCH PATIENTS
+
+// SEARCH PATIENTS
 // Route: GET /api/patient/search?query=...
-// ==========================================
+
 router.get('/search', protect, async (req, res) => {
   try {
     const { query } = req.query;
@@ -57,10 +56,10 @@ router.get('/search', protect, async (req, res) => {
   }
 });
 
-// ==========================================
+
 // 3. GET LOGGED-IN PATIENT DASHBOARD
 // Route: GET /api/patient/dashboard
-// ==========================================
+
 router.get('/dashboard', protect, patientOnly, async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
@@ -113,10 +112,10 @@ router.get('/dashboard', protect, patientOnly, async (req, res) => {
   }
 });
 
-// ==========================================
+
 // 4. CREATE PATIENT PROFILE
 // Route: POST /api/patient/test-profile
-// ==========================================
+
 router.post('/test-profile', protect, async (req, res) => {
   let savedUser = null;
 
@@ -211,10 +210,10 @@ router.post('/test-profile', protect, async (req, res) => {
   }
 });
 
-// ==========================================
+
 // 5. GET PATIENT BY ID (PAT-123456, NIC, or Mongo _id)
 // Route: GET /api/patient/:id
-// ==========================================
+
 router.get('/:id', protect, async (req, res) => {
   try {
     const { id } = req.params;
@@ -247,10 +246,10 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
-// ==========================================
+
 // 6. UPDATE PATIENT
 // Route: PUT /api/patient/:id
-// ==========================================
+
 router.put('/:id', protect, async (req, res) => {
   try {
     const { id } = req.params;

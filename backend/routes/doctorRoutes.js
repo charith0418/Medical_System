@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const Doctor = require("../models/Doctor"); // Adjust path if your model is named differently (e.g. Doctor.js)
+const Doctor = require("../models/Doctor"); 
 
-// 1. GET Doctor profile by Email (Used by DoctorDashboard)
-// Endpoint: GET /api/doctors/profile?email=doctor@example.com
+//  GET Doctor profile by Email 
+
 router.get("/profile", async (req, res) => {
   try {
     const { email } = req.query;
@@ -15,7 +15,7 @@ router.get("/profile", async (req, res) => {
       });
     }
 
-    // Find doctor matching email (case-insensitive)
+    // Find doctor matching email
     const doctor = await Doctor.findOne({ 
       email: { $regex: new RegExp(`^${email}$`, "i") } 
     });
@@ -45,8 +45,8 @@ router.get("/profile", async (req, res) => {
   }
 });
 
-// 2. GET All Doctors List (Optional: For dropdowns/admin views)
-// Endpoint: GET /api/doctors
+// GET All Doctors List 
+
 router.get("/", async (req, res) => {
   try {
     const doctors = await Doctor.find().select("-password");

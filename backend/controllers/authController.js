@@ -4,9 +4,9 @@ const PatientProfile = require('../models/PatientProfile');
 const generateToken = require('../utils/generateToken');
 const { sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/sendEmail');
 
-// ==========================================
-// 1. REGISTER PATIENT / USER
-// ==========================================
+
+ //REGISTER PATIENT / USER
+
 const registerUser = async (req, res) => {
   let savedUser = null;
   let savedProfile = null;
@@ -47,7 +47,7 @@ const registerUser = async (req, res) => {
 
     const cleanEmail = String(email).toLowerCase().trim();
 
-    // Normalize Role to match Mongoose enum ('Patient', 'Doctor', 'Staff', 'Admin')
+  
     const rawRole = String(role).trim().toLowerCase();
     const normalizedRole =
       rawRole === 'doctor' ? 'Doctor' :
@@ -172,9 +172,7 @@ const registerUser = async (req, res) => {
   }
 };
 
-// ==========================================
-// 2. USER LOGIN
-// ==========================================
+//User login
 const loginUser = async (req, res) => {
   try {
     const { email, password, role, rememberMe } = req.body;
@@ -196,7 +194,6 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Case-insensitive role comparison
     if (role && user.role.toLowerCase() !== String(role).trim().toLowerCase()) {
       return res.status(403).json({
         success: false,
@@ -231,9 +228,7 @@ const loginUser = async (req, res) => {
   }
 };
 
-// ==========================================
-// 3. FORGOT PASSWORD
-// ==========================================
+//Forget passowrd
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -279,9 +274,7 @@ const forgotPassword = async (req, res) => {
   }
 };
 
-// ==========================================
-// 4. RESET PASSWORD WITH TOKEN
-// ==========================================
+//Reset password
 const resetPassword = async (req, res) => {
   try {
     const { token } = req.params;

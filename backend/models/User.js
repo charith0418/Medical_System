@@ -34,9 +34,9 @@ const userSchema = new mongoose.Schema(
     }
 );
 
-// Hash password before saving (Promise-based, NO 'next' parameter)
+
 userSchema.pre('save', async function () {
-    // If password hasn't changed, exit early without calling next()
+    
     if (!this.isModified('password')) {
         return;
     }

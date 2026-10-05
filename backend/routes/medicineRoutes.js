@@ -4,7 +4,7 @@ const Medicine = require('../models/Medicine');
 const MedicineMaster = require('../models/MedicineMaster');
 const generateMedicine = require('../utils/generateMedicine');
 
-// 1. GET: Fetch all verified drug names for the frontend searchable dropdown
+//GET: Fetch all verified drug names
 router.get('/master-list', async (req, res) => {
   try {
     const list = await MedicineMaster.find().sort({ medicineName: 1 });
@@ -14,7 +14,7 @@ router.get('/master-list', async (req, res) => {
   }
 });
 
-// 2. GET: Fetch active stock levels with full name details populated
+// GET: Fetch active stock levels
 router.get('/', async (req, res) => {
   try {
     const stock = await Medicine.find()
@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 3. GET: Query specific inventory allocations by location matching
+// GET: Query specific inventory allocations
 router.get('/search', async (req, res) => {
   try {
     const { q } = req.query;
@@ -46,12 +46,12 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// 4. POST: Save updated stock layout entry (Aligns with React component output)
+//  POST: Save updated stock layout entry 
 router.post('/', async (req, res) => {
   try {
     const { medicineMasterId, quantity, storageLocation, reorderLevel } = req.body;
 
-    // Optional: Creates a code sequence fallback tracking metric if required
+    
     let medicineCode;
     try {
       medicineCode = await generateMedicine();
@@ -79,7 +79,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// 5. DELETE: Drop a stock line item row from inventory management tracking
+// DELETE: Drop a stock line item row from inventory management tracking
 router.delete('/:id', async (req, res) => {
   try {
     await Medicine.findByIdAndDelete(req.params.id);
@@ -89,7 +89,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// 6. DIAGNOSTIC ROUTE MATCH FALLBACK
+// DIAGNOSTIC ROUTE MATCH FALLBACK
 router.use((req, res) => {
   res.status(404).json({
     error: "Route mismatch within medicine router context",

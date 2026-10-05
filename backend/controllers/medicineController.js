@@ -1,15 +1,15 @@
 const Medicine = require('../models/Medicine');
 const generateMedicine = require('../utils/generateMedicine');
 
-// 1. POST /api/medicines
+// POST /api/medicines
 const addMedicine = async (req, res) => {
     try {
         const { name, category, quantity, unitForm, storageLocation, reorderLevel } = req.body;
         
-        // Await the asynchronous code generator utility
+    
         const medicineCode = await generateMedicine();
 
-        // Map the payload to the exact schema properties
+   
         const newMedicine = await Medicine.create({
             medicineCode,
             medicineName: name,
@@ -29,7 +29,7 @@ const addMedicine = async (req, res) => {
     }
 };
 
-// 2. GET /api/medicines
+// GET /api/medicines
 const getAllMedicines = async (req, res) => {
     try {
         // Sorted by newest additions first
@@ -40,7 +40,7 @@ const getAllMedicines = async (req, res) => {
     }
 };
 
-// 3. GET /api/medicines/search
+// GET /api/medicines/search
 const searchMedicines = async (req, res) => {
     try {
         const { q } = req.query;
@@ -49,7 +49,6 @@ const searchMedicines = async (req, res) => {
             return res.status(400).json({ message: 'Search query parameter (q) is required' });
         }
 
-        // Updated queries to target medicineName and medicineCode schema properties
         const medicines = await Medicine.find({
             $or: [
                 { medicineName: { $regex: q, $options: 'i' } },

@@ -11,7 +11,7 @@ const addTreatment = async (req, res) => {
       return res.status(400).json({ message: "Patient ID is required" });
     }
 
-    // Resolve patient by PAT-ID or _id
+    // Resolve patient
     let patient = null;
     if (mongoose.Types.ObjectId.isValid(patientId)) {
       patient = await PatientProfile.findById(patientId);
@@ -32,7 +32,7 @@ const addTreatment = async (req, res) => {
       consultant: consultant || "Dr. N. Silva"
     });
 
-    // Update patient profile details (last visit timestamp & optional new allergies)
+    // Update patient profile details 
     const updateData = { lastVisit: new Date() };
 
     if (reportedAllergies && typeof reportedAllergies === 'string' && reportedAllergies.trim()) {
@@ -75,7 +75,7 @@ const getTreatmentsByPatient = async (req, res) => {
     const { patientId } = req.params;
     let query = { patientId: patientId };
 
-    // Support lookup by Mongo _id as well
+   
     if (mongoose.Types.ObjectId.isValid(patientId)) {
       const patient = await PatientProfile.findById(patientId);
       if (patient) {
