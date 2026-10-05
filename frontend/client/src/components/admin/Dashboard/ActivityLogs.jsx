@@ -2,99 +2,74 @@ import React from "react";
 import {
   FaUser,
   FaUserMd,
+  FaUserNurse,
   FaCalendarCheck,
   FaFileMedical,
 } from "react-icons/fa";
 
 const iconMap = {
   patient: <FaUser className="text-blue-600" />,
-  doctor: <FaUserMd className="text-green-600" />,
+  doctor: <FaUserMd className="text-emerald-600" />,
+  staff: <FaUserNurse className="text-purple-600" />,
   appointment: <FaCalendarCheck className="text-orange-500" />,
-  report: <FaFileMedical className="text-red-500" />,
+  report: <FaFileMedical className="text-rose-500" />,
 };
 
 export default function ActivityLogs({
   logs = [],
   title = "Recent Activity Logs",
 }) {
-  return (
-    <div className="bg-white rounded-2xl shadow-sm p-6">
+  const safeLogs = Array.isArray(logs) ? logs : [];
 
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-6 text-left">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-
         <div>
-          <h2 className="text-xl font-bold text-gray-800">
-            {title}
-          </h2>
-
-          <p className="text-sm text-gray-500">
-            Latest activities from the system
-          </p>
+          <h2 className="text-xl font-bold text-gray-800">{title}</h2>
+          <p className="text-sm text-gray-500">Latest activities from the system</p>
         </div>
-
       </div>
 
       {/* Body */}
-      {logs.length === 0 ? (
-
-        <div className="h-72 flex items-center justify-center text-gray-400">
+      {safeLogs.length === 0 ? (
+        <div className="h-48 flex items-center justify-center text-gray-400 font-medium">
           No activity available
         </div>
-
       ) : (
-
-        <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-
-          {logs.map((log) => (
-
+        <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+          {safeLogs.map((log, index) => (
             <div
-              key={log.id}
-              className="flex items-start justify-between border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition"
+              key={log.id || index}
+              className="flex items-center justify-between border border-gray-100 rounded-xl p-4 hover:bg-gray-50/80 transition"
             >
-
-              <div className="flex gap-4">
-
-                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-xl">
-                  {iconMap[log.type] || (
-                    <FaUser className="text-gray-500" />
-                  )}
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center text-lg shrink-0">
+                  {iconMap[log.type] || <FaUser className="text-gray-500" />}
                 </div>
 
                 <div>
-
-                  <h3 className="font-semibold text-gray-800">
+                  <h3 className="font-semibold text-gray-800 text-sm">
                     {log.title}
                   </h3>
-
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-0.5">
                     {log.description}
                   </p>
-
                 </div>
-
               </div>
 
-              <div className="text-right">
-
-                <p className="text-sm font-medium text-gray-700">
-                  {log.time}
+              <div className="text-right shrink-0 ml-4">
+                <p className="text-xs font-semibold text-gray-700">
+                  {log.time || "Recent"}
                 </p>
-
-                <p className="text-xs text-gray-400 mt-1">
-                  {log.date}
+                <p className="text-[11px] font-mono text-gray-400 mt-0.5">
+                  {log.date || ""}
                 </p>
-
               </div>
-
             </div>
-
           ))}
-
         </div>
-
       )}
-
     </div>
   );
 }
