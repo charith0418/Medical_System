@@ -26,12 +26,17 @@ import {
 
 import { Html5Qrcode } from 'html5-qrcode';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Sanitize URL to ensure consistent /api prefix across environments
+const rawUrl =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://medical-system-5fwx.onrender.com';
+
+const CLEAN_BASE_URL = rawUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+const API_BASE_URL = `${CLEAN_BASE_URL}/api`;
 
 const StaffDashboard = () => {
-  // Detect role from localStorage or default to receptionist
-  const savedRole = localStorage.getItem('userRole') || 'receptionist'; // 'receptionist' | 'pharmacist'
+  const savedRole = localStorage.getItem('userRole') || 'receptionist';
   const [activeRole, setActiveRole] = useState(savedRole);
 
   const [patients, setPatients] = useState([]);
@@ -60,13 +65,13 @@ const StaffDashboard = () => {
   useEffect(() => {
     const fetchLiveRecords = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
 
         const response = await fetch(`${API_BASE_URL}/patients`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
           }
         });
 
@@ -75,11 +80,18 @@ const StaffDashboard = () => {
         }
 
         const data = await response.json();
+        const rawList = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.patients)
+          ? data.patients
+          : [];
 
-        const normalized = data.map((p) => ({
+        const normalized = rawList.map((p) => ({
           id: p.patientId || (p._id ? p._id.substring(18).toUpperCase() : 'N/A'),
           _id: p._id,
-          name: p.fullName || 'Registered Patient',
+          name: p.fullName || p.name || 'Registered Patient',
           nic: p.nic || 'N/A',
           dob: p.dob && typeof p.dob === 'string' ? p.dob.split('T')[0] : 'N/A',
           gender: p.gender || 'Not Specified',
@@ -161,7 +173,7 @@ const StaffDashboard = () => {
   const startScanner = async () => {
     setShowScanner(true);
     setScannerError('');
-    setScannerMessage('Starting camera...');
+    setScannerMessage('Accessing camera hardware...');
     scanLockRef.current = false;
 
     setTimeout(async () => {
@@ -169,8 +181,22 @@ const StaffDashboard = () => {
         const scanner = new Html5Qrcode('qr-reader');
         scannerRef.current = scanner;
 
+        // Auto-detect available camera device to prevent OverconstrainedError on laptops
+        let cameraConfig = { facingMode: 'environment' };
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (cameras && cameras.length > 0) {
+            const backCam = cameras.find((c) =>
+              /back|rear|environment/i.test(c.label)
+            );
+            cameraConfig = backCam ? backCam.id : cameras[0].id;
+          }
+        } catch (camErr) {
+          console.warn('Camera enumeration fallback:', camErr);
+        }
+
         await scanner.start(
-          { facingMode: 'environment' },
+          cameraConfig,
           {
             fps: 10,
             qrbox: { width: 250, height: 250 },
@@ -180,16 +206,58 @@ const StaffDashboard = () => {
             if (scanLockRef.current) return;
 
             scanLockRef.current = true;
-            const scannedValue = decodedText.trim();
+            const rawScan = decodedText.trim();
 
-            setScannerMessage(`Scanned: ${scannedValue}`);
+            // Extract PAT-XXXXXX ID if wrapped inside system validation tokens
+            const patMatch = rawScan.match(/PAT-\d+/i);
+            const lookupId = patMatch ? patMatch[0].toUpperCase() : rawScan;
 
-            const patient = patients.find(
+            setScannerMessage(`Processing: ${lookupId}`);
+
+            // 1. Search in local state
+            let patient = patients.find(
               (p) =>
-                String(p.id).toLowerCase() === scannedValue.toLowerCase() ||
-                String(p.nic).toLowerCase() === scannedValue.toLowerCase() ||
-                String(p._id).toLowerCase() === scannedValue.toLowerCase()
+                String(p.id).toUpperCase() === lookupId.toUpperCase() ||
+                String(p.nic).toLowerCase() === rawScan.toLowerCase() ||
+                String(p._id).toLowerCase() === rawScan.toLowerCase() ||
+                rawScan.toLowerCase().includes(String(p.id).toLowerCase())
             );
+
+            // 2. Fallback: Query live database endpoint if not found locally
+            if (!patient && lookupId) {
+              try {
+                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                const res = await fetch(`${API_BASE_URL}/patients/${encodeURIComponent(lookupId)}`, {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                  }
+                });
+
+                if (res.ok) {
+                  const fetchedJson = await res.json();
+                  const p = fetchedJson.data || fetchedJson.patient || fetchedJson;
+                  if (p) {
+                    patient = {
+                      id: p.patientId || (p._id ? p._id.substring(18).toUpperCase() : lookupId),
+                      _id: p._id,
+                      name: p.fullName || p.name || 'Registered Patient',
+                      nic: p.nic || 'N/A',
+                      dob: p.dob && typeof p.dob === 'string' ? p.dob.split('T')[0] : 'N/A',
+                      gender: p.gender || 'Not Specified',
+                      phone: p.phone || 'N/A',
+                      bloodGroup: p.bloodGroup || 'N/A',
+                      history: Array.isArray(p.history) ? p.history : [],
+                      prescriptions: Array.isArray(p.prescriptions) ? p.prescriptions : [],
+                      date: 'Today'
+                    };
+                    setPatients((prev) => [patient, ...prev.filter(item => item.id !== patient.id)]);
+                  }
+                }
+              } catch (lookupErr) {
+                console.warn('Live lookup failed:', lookupErr);
+              }
+            }
 
             if (patient) {
               await stopScanner();
@@ -203,23 +271,23 @@ const StaffDashboard = () => {
               setShowPrescriptionHistory(false);
             } else {
               setScannerError(
-                `No patient found for "${scannedValue}". Please scan a valid patient QR code.`
+                `No patient profile found for "${lookupId}". Please verify the QR card.`
               );
 
               setTimeout(() => {
                 scanLockRef.current = false;
                 setScannerError('');
-              }, 2000);
+              }, 2500);
             }
           },
           () => {}
         );
 
-        setScannerMessage('Point the camera at the patient QR code.');
+        setScannerMessage('Align patient QR code within frame.');
       } catch (error) {
         console.error('Camera scanner error:', error);
         setScannerError(
-          'Could not open camera. Please ensure camera permissions are allowed.'
+          'Could not open camera. Please ensure camera permissions are allowed in your browser address bar.'
         );
         setScannerMessage('');
       }
@@ -658,7 +726,6 @@ const StaffDashboard = () => {
 
             <form onSubmit={handleRegisterCheckIn} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* DEPARTMENT ONLY SELECTION */}
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-500 block mb-1">
                     Assign Clinic / Department
@@ -767,7 +834,6 @@ const StaffDashboard = () => {
 
             return (
               <>
-                {/* TODAY'S PRESCRIPTIONS */}
                 <div className="bg-white rounded-2xl border-2 border-emerald-500/30 shadow-lg p-6 lg:p-8 space-y-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
                     <div className="flex items-center gap-3">
@@ -972,7 +1038,7 @@ const StaffDashboard = () => {
         </div>
       )}
 
-      {/* CARD PRINT PREVIEW (COMMON) */}
+      {/* CARD PRINT PREVIEW */}
       {selectedPatient && !showMedicalCards && (
         <div className="w-full flex flex-col items-center justify-center animate-fadeIn print:p-0">
           <div
