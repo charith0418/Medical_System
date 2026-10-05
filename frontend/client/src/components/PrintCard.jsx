@@ -1,7 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FaSearch, FaExclamationTriangle, FaPlusSquare, FaPhoneAlt, FaPrint } from "react-icons/fa";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+// Automatically cleans any trailing slash or duplicate /api, and guarantees a single /api prefix
+const rawUrl =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://medical-system-5fwx.onrender.com";
+
+const CLEAN_BASE_URL = rawUrl.replace(/\/api\/?$/, "").replace(/\/+$/, "");
+const API_BASE_URL = `${CLEAN_BASE_URL}/api`;
 
 export default function PrintCard() {
   const [patientId, setPatientId] = useState("");
@@ -23,24 +30,32 @@ export default function PrintCard() {
 
     if (value.trim().length > 0) {
       try {
-        const token = localStorage.getItem("token");
-        // Fetches all patients or searches with query parameters depending on your API setup
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token");
         const response = await fetch(`${API_BASE_URL}/patients`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
+            ...(token ? { "Authorization": `Bearer ${token}` } : {})
           }
         });
 
         if (response.ok) {
-          const data = await response.json();
-          // Filter dynamically based on search inputs
-          const filtered = data.filter(
+          const resData = await response.json();
+          // Support both raw array responses and { data: [...] } or { patients: [...] } payloads
+          const list = Array.isArray(resData)
+            ? resData
+            : Array.isArray(resData?.data)
+            ? resData.data
+            : Array.isArray(resData?.patients)
+            ? resData.patients
+            : [];
+
+          const query = value.toLowerCase();
+          const filtered = list.filter(
             (p) =>
-              (p.patientId && p.patientId.toLowerCase().includes(value.toLowerCase())) ||
-              (p.fullName && p.fullName.toLowerCase().includes(value.toLowerCase())) ||
-              (p.nic && p.nic.toLowerCase().includes(value.toLowerCase()))
+              (p.patientId && p.patientId.toLowerCase().includes(query)) ||
+              (p.fullName && p.fullName.toLowerCase().includes(query)) ||
+              (p.nic && p.nic.toLowerCase().includes(query))
           );
           setSuggestions(filtered);
           setShowSuggestions(true);
@@ -67,40 +82,44 @@ export default function PrintCard() {
 
   // When user clicks a suggestion from the popup list
   const selectSuggestion = (patient) => {
-    setPatientId(patient.patientId || patient._id);
+    const selectedId = patient.patientId || patient._id;
+    setPatientId(selectedId);
     setSuggestions([]);
     setShowSuggestions(false);
-    loadPatientCard(patient.patientId || patient._id);
+    loadPatientCard(selectedId);
   };
 
-  // Core fetch and load logic from Mongoose backend
+  // Core fetch and load logic from backend
   const loadPatientCard = async (idToFetch) => {
-    if (!idToFetch) return;
+    const cleanId = (idToFetch || "").trim();
+    if (!cleanId) return;
+
     setLoading(true);
     setError("");
     setPatientData(null);
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/patients/${idToFetch}`, {
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+      const response = await fetch(`${API_BASE_URL}/patients/${cleanId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
         }
       });
       
       if (!response.ok) {
-        throw new Error(`Patient record "${idToFetch}" could not be found in the database.`);
+        throw new Error(`Patient record "${cleanId}" could not be found in the database.`);
       }
 
-      const data = await response.json();
+      const rawJson = await response.json();
+      // Normalize object response whether nested inside { data: ... } or flat
+      const data = rawJson.data || rawJson.patient || rawJson;
       
-      // Clean up backend model attributes into predictable state fields
       setPatientData({
-        patientId: data.patientId || data._id.substring(18).toUpperCase(),
-        fullName: data.fullName || "Registered Patient",
-        dob: data.dob ? data.dob.split("T")[0] : "N/A",
+        patientId: data.patientId || (data._id ? data._id.substring(18).toUpperCase() : cleanId),
+        fullName: data.fullName || data.name || "Registered Patient",
+        dob: data.dob ? String(data.dob).split("T")[0] : "N/A",
         bloodGroup: data.bloodGroup || "--",
         phone: data.phone || "N/A"
       });
@@ -122,13 +141,12 @@ export default function PrintCard() {
     loadPatientCard(patientId);
   };
 
-  // Browser Print trigger
   const handlePrint = () => {
     window.print();
   };
 
   const qrCodeUrl = patientData 
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=14427D&data=${patientData.patientId}` 
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=14427D&data=${encodeURIComponent(patientData.patientId)}` 
     : "";
 
   return (
@@ -147,7 +165,7 @@ export default function PrintCard() {
               value={patientId}
               onChange={handleInputChange}
               onFocus={() => patientId && setShowSuggestions(true)}
-              className="w-full bg-transparent px-5 py-3 outline-hidden text-base text-slate-950 font-medium"
+              className="w-full bg-transparent px-5 py-3 outline-none text-base text-slate-950 font-medium"
               required
             />
           </div>
@@ -173,7 +191,7 @@ export default function PrintCard() {
                 <div>
                   <p className="font-bold text-slate-900">{patient.fullName || "Registered Patient"}</p>
                   <p className="text-[13px] text-slate-400">
-                    DOB: {patient.dob ? patient.dob.split("T")[0] : "N/A"} | Nic: {patient.nic || "N/A"}
+                    DOB: {patient.dob ? String(patient.dob).split("T")[0] : "N/A"} | NIC: {patient.nic || "N/A"}
                   </p>
                 </div>
                 <span className="font-mono font-bold text-sm text-[#078a72] bg-emerald-50 px-2.5 py-1 rounded-md">
@@ -199,8 +217,7 @@ export default function PrintCard() {
           ref={cardSectionRef} 
           className="max-w-xl mx-auto p-6 bg-white rounded-2xl border border-slate-100 shadow-sm w-full h-full flex flex-col justify-between animate-fadeIn print:p-0 print:border-none print:shadow-none"
         >
-          
-          {/* Centered Header Row (Hidden during printing) */}
+          {/* Header Row (Hidden during printing) */}
           <div className="text-center mb-6 print:hidden">
             <h3 className="text-xl font-bold text-slate-800">Your Smart Health Card</h3>
             <p className="text-xs text-slate-400 mt-1">
@@ -210,8 +227,6 @@ export default function PrintCard() {
 
           {/* Visual Canvas Card Frame Container */}
           <div className="flex-1 py-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 flex items-center justify-center min-h-[250px] print:bg-transparent print:border-none print:p-0">
-            
-            {/* Capturable/Printable ID Card - Target Container */}
             <div 
               id="printable-health-card"
               className="w-[380px] h-[230px] bg-gradient-to-br from-[#1E5FAD] to-[#14427D] text-white rounded-2xl p-5 flex flex-col justify-between shadow-xl relative overflow-hidden shrink-0 border border-blue-900"
@@ -233,7 +248,7 @@ export default function PrintCard() {
                 </span>
               </div>
 
-              {/* Dynamic Core Body Row */}
+              {/* Dynamic Body Row */}
               <div className="flex flex-1 items-center justify-between gap-4 py-2 z-10">
                 <div className="flex-1 space-y-2.5 text-left">
                   <div>
@@ -266,7 +281,7 @@ export default function PrintCard() {
                 </div>
               </div>
 
-              {/* Bottom ICE bar Row */}
+              {/* Bottom ICE Bar */}
               <div className="border-t border-white/10 pt-2 flex items-center justify-between z-10 text-[9px]">
                 <div className="flex items-center gap-1.5 text-blue-100">
                   <FaPhoneAlt className="text-[8px] text-emerald-300" />
@@ -277,11 +292,10 @@ export default function PrintCard() {
                 </div>
                 <span className="text-[7px] font-mono opacity-35 tracking-tight">ISO CR-80 Secure Spec</span>
               </div>
-
             </div>
           </div>
 
-          {/* 🖨️ Big Width Primary Print Action Button (Below Card) */}
+          {/* Print Button */}
           <div className="mt-6 flex justify-center print:hidden">
             <button
               onClick={handlePrint}
@@ -290,11 +304,10 @@ export default function PrintCard() {
               <FaPrint className="text-lg" /> Print Smart Health Card
             </button>
           </div>
-
         </div>
       )}
 
-      {/* CSS Isolation Rules for exact printing scales */}
+      {/* Print Scaling Styles */}
       <style>{`
         @media print {
           body * {
