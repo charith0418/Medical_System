@@ -54,10 +54,24 @@ const getAuthHeaders = () => {
 };
 
 export default function DoctorDashboard({ onLogout }) {
-  const [currentDoctor, setCurrentDoctor] = useState({
-    id: 101,
-    name: "Dr. N. Silva",
-    specialty: "General Physician",
+  // Read doctor state dynamically from localStorage
+  const [currentDoctor, setCurrentDoctor] = useState(() => {
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          id: parsed._id || parsed.doctorId || parsed.id || 101,
+          name: parsed.name || "Doctor",
+          specialty: parsed.specialty || parsed.specialization || "General Physician",
+        };
+      }
+    } catch (e) {}
+    return {
+      id: 101,
+      name: "Doctor",
+      specialty: "General Physician",
+    };
   });
 
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -92,21 +106,56 @@ export default function DoctorDashboard({ onLogout }) {
   const [currentPrescriptionList, setCurrentPrescriptionList] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // Load Logged-in Doctor Credentials
+  // Load and sync Logged-in Doctor Credentials
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        setCurrentDoctor({
-          id: parsed._id || parsed.doctorId || 101,
-          name: parsed.name || "Doctor",
-          specialty: parsed.specialty || parsed.specialization || "General Physician",
-        });
+    const syncDoctorProfile = async () => {
+      try {
+        const stored = localStorage.getItem("user");
+        let doctorEmail = "";
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          doctorEmail = parsed.email;
+          setCurrentDoctor({
+            id: parsed._id || parsed.doctorId || parsed.id || 101,
+            name: parsed.name || "Doctor",
+            specialty: parsed.specialty || parsed.specialization || "General Physician",
+          });
+        }
+
+        // Fetch matching doctor profile from backend to get official specialty
+        if (doctorEmail) {
+          const response = await fetch(`${API_BASE_URL}/admin/doctors`, {
+            method: "GET",
+            headers: getAuthHeaders(),
+          });
+          if (response.ok) {
+            const doctors = await response.json();
+            const matched = (Array.isArray(doctors) ? doctors : []).find(
+              (d) => d.email?.toLowerCase() === doctorEmail?.toLowerCase()
+            );
+            if (matched) {
+              const updated = {
+                id: matched.doctorId || matched._id,
+                name: matched.name,
+                specialty: matched.specialty || matched.specialization || "General Physician",
+              };
+              setCurrentDoctor(updated);
+              localStorage.setItem(
+                "user",
+                JSON.stringify({
+                  ...(stored ? JSON.parse(stored) : {}),
+                  ...matched,
+                })
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not sync doctor profile:", err);
       }
-    } catch (e) {
-      console.warn("Could not parse doctor info from localStorage", e);
-    }
+    };
+
+    syncDoctorProfile();
   }, []);
 
   // Fetch Medicine Stock from 'medicines' endpoint
@@ -200,7 +249,6 @@ export default function DoctorDashboard({ onLogout }) {
     }
   };
 
-  // Dynamically import Html5Qrcode to prevent Rollup TDZ / E initialization crash
   const startCameraScanner = async () => {
     setScannerError("");
     setShowScanner(true);

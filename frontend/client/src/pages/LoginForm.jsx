@@ -26,7 +26,7 @@ import { RiLockPasswordFill } from "react-icons/ri";
 const rawUrl =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  "http://localhost:5000";
+  "https://medical-system-5fwx.onrender.com";
 
 const API_BASE_URL = rawUrl.replace(/\/api\/?$/, "").replace(/\/+$/, "");
 
@@ -39,7 +39,7 @@ const LoginForm = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Forgot Password Modal States (Email Only)
+  // Forgot Password Modal States
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -97,7 +97,6 @@ const LoginForm = ({ onLoginSuccess }) => {
     try {
       setLoading(true);
 
-      // Always routes cleanly to /api/auth/login without double /api
       const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         email: email.trim(),
         password,
@@ -114,7 +113,29 @@ const LoginForm = ({ onLoginSuccess }) => {
         throw new Error("Security verification failed. No access token provided.");
       }
 
+      // 1. Save authentication token and role
       localStorage.setItem("token", token);
+      localStorage.setItem("role", role);
+
+      // 2. Extract and save doctor/user profile into localStorage
+      const userData =
+        response.data?.user ||
+        response.data?.doctor ||
+        response.data?.data?.user || {
+          name: response.data?.name || email.trim().split("@")[0],
+          email: email.trim(),
+          role: role,
+        };
+
+      if (!userData.name) {
+        userData.name = response.data?.name || email.trim().split("@")[0];
+      }
+
+      if (response.data?.specialty || response.data?.specialization) {
+        userData.specialty = response.data.specialty || response.data.specialization;
+      }
+
+      localStorage.setItem("user", JSON.stringify(userData));
 
       if (rememberMe) {
         localStorage.setItem("rememberedEmail", email.trim());
