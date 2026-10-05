@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   QrCode,
@@ -12,7 +12,6 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
-import { Html5Qrcode } from "html5-qrcode";
 import DoctorNavbar from "./DoctorNavbar";
 import DoctorSidebar from "./DoctorSidebar";
 import MedicalHistory from "./MedicalHistory";
@@ -20,7 +19,13 @@ import MedicalHistoryPopup from "./MedicalHistoryPopup";
 import PrescriptionCard from "./PrescriptionCard";
 import PrescriptionPopup from "./PrescriptionPopup";
 
-const API_BASE_URL = "http://localhost:5000/api";
+// Live Render API Base URL with fallback
+const RAW_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://medical-system-5fwx.onrender.com";
+const API_BASE_URL = RAW_BASE_URL.endsWith("/api")
+  ? RAW_BASE_URL
+  : `${RAW_BASE_URL.replace(/\/$/, "")}/api`;
 
 const standardDosages = [
   "1 Tablet Daily (QD)",
@@ -49,10 +54,10 @@ const getAuthHeaders = () => {
 };
 
 export default function DoctorDashboard({ onLogout }) {
-  const [currentDoctor] = useState({
+  const [currentDoctor, setCurrentDoctor] = useState({
     id: 101,
     name: "Dr. N. Silva",
-    specialty: "Cardiologist",
+    specialty: "General Physician",
   });
 
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -70,6 +75,9 @@ export default function DoctorDashboard({ onLogout }) {
   const [scannerError, setScannerError] = useState("");
   const [selectedPrescription, setSelectedPrescription] = useState(null);
 
+  // Scanner ref for camera stream cleanup
+  const scannerRef = useRef(null);
+
   // Patient Visit Form States
   const [diagnosedCondition, setDiagnosedCondition] = useState("");
   const [newAllergies, setNewAllergies] = useState("");
@@ -84,13 +92,29 @@ export default function DoctorDashboard({ onLogout }) {
   const [currentPrescriptionList, setCurrentPrescriptionList] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
 
+  // Load Logged-in Doctor Credentials
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        setCurrentDoctor({
+          id: parsed._id || parsed.doctorId || 101,
+          name: parsed.name || "Doctor",
+          specialty: parsed.specialty || parsed.specialization || "General Physician",
+        });
+      }
+    } catch (e) {
+      console.warn("Could not parse doctor info from localStorage", e);
+    }
+  }, []);
+
   // Fetch Medicine Stock from 'medicines' endpoint
   useEffect(() => {
     let isMounted = true;
 
     const fetchMedicinesStock = async () => {
       try {
-        console.log(`Fetching active inventory from: ${API_BASE_URL}/medicines`);
         const response = await fetch(`${API_BASE_URL}/medicines`, {
           method: "GET",
           headers: getAuthHeaders(),
@@ -98,18 +122,14 @@ export default function DoctorDashboard({ onLogout }) {
 
         if (response.ok) {
           const data = await response.json();
-          console.log("Medicines inventory loaded from server:", data);
-
           const stockItems = Array.isArray(data) ? data : data.data || [];
 
           if (Array.isArray(stockItems) && stockItems.length > 0) {
-            // Extract medicine names from populated medicineMasterId or direct properties
             const extractedNames = stockItems
               .map((item) => {
                 if (!item) return "";
                 if (typeof item === "string") return item;
-                
-                // Populated master document inside medicines collection
+
                 if (item.medicineMasterId && typeof item.medicineMasterId === "object") {
                   return (
                     item.medicineMasterId.medicineName ||
@@ -118,18 +138,15 @@ export default function DoctorDashboard({ onLogout }) {
                     ""
                   );
                 }
-                
-                // Direct fallback properties
+
                 return item.medicineName || item.name || item.title || "";
               })
               .filter((name) => Boolean(name && typeof name === "string"));
 
-            // Remove duplicates
             const uniqueMedicines = [...new Set(extractedNames)];
 
             if (isMounted && uniqueMedicines.length > 0) {
               setHospitalFormulary(uniqueMedicines);
-              console.log(`Synced ${uniqueMedicines.length} unique medicines successfully.`);
             }
           }
         }
@@ -183,6 +200,7 @@ export default function DoctorDashboard({ onLogout }) {
     }
   };
 
+  // Dynamically import Html5Qrcode to prevent Rollup TDZ / E initialization crash
   const startCameraScanner = async () => {
     setScannerError("");
     setShowScanner(true);
@@ -191,11 +209,23 @@ export default function DoctorDashboard({ onLogout }) {
       try {
         const scannerElement = document.getElementById("wristband-reader");
         if (!scannerElement) {
-          setScannerError("Scanner could not be initialized. Please try again.");
+          setScannerError("Scanner element not found. Please try again.");
           return;
         }
 
-        const scanner = new Html5Qrcode("wristband-reader");
+        const html5QrcodeModule = await import("html5-qrcode");
+        const Html5QrcodeClass =
+          html5QrcodeModule.Html5Qrcode ||
+          html5QrcodeModule.default?.Html5Qrcode ||
+          html5QrcodeModule.default;
+
+        if (!Html5QrcodeClass) {
+          throw new Error("Html5Qrcode constructor could not be resolved.");
+        }
+
+        const scanner = new Html5QrcodeClass("wristband-reader");
+        scannerRef.current = scanner;
+
         await scanner.start(
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
@@ -203,8 +233,9 @@ export default function DoctorDashboard({ onLogout }) {
             try {
               await scanner.stop();
               await scanner.clear();
+              scannerRef.current = null;
             } catch (cleanupError) {
-              console.warn("Scanner cleanup error:", cleanupError);
+              console.warn("Scanner cleanup warning:", cleanupError);
             }
             setShowScanner(false);
             setSearchId(decodedText);
@@ -215,13 +246,23 @@ export default function DoctorDashboard({ onLogout }) {
       } catch (error) {
         console.error("Camera scanner error:", error);
         setScannerError(
-          "Could not access the camera. Please allow camera permission and try again."
+          "Could not access the camera. Please allow camera permissions and try again."
         );
       }
     }, 150);
   };
 
   const closeCameraScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        await scannerRef.current.clear();
+      } catch (err) {
+        console.warn("Scanner stop error:", err);
+      }
+      scannerRef.current = null;
+    }
+
     try {
       const scannerElement = document.getElementById("wristband-reader");
       if (scannerElement) {
@@ -304,7 +345,7 @@ export default function DoctorDashboard({ onLogout }) {
         body: JSON.stringify(visitPayload),
       });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
       if (response.ok && (result.success || result._id || result.id)) {
         alert(
           `Successfully recorded visit for ${
@@ -573,7 +614,7 @@ export default function DoctorDashboard({ onLogout }) {
                           {activePatient.allergies.map((allergy, idx) => (
                             <span
                               key={idx}
-                              className="bg-white border border-rose-100 text-rose-700 font-bold px-3.5 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-xs"
+                              className="bg-white border border-rose-100 text-rose-700 font-bold px-3.5 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm"
                             >
                               <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                               {typeof allergy === "string"
@@ -632,7 +673,7 @@ export default function DoctorDashboard({ onLogout }) {
 
             {/* Treatment Modal */}
             {showTreatmentModal && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-slate-200 flex flex-col">
                   <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
                     <div className="flex items-center gap-3">
@@ -716,7 +757,7 @@ export default function DoctorDashboard({ onLogout }) {
 
             {/* Prescription Modal */}
             {showPrescriptionModal && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-visible border border-slate-200 flex flex-col">
                   <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
                     <div className="flex items-center gap-3">
