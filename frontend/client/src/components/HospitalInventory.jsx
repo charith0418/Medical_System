@@ -5,7 +5,7 @@ import {
 } from 'react-icons/fa';
 import toast, { Toaster } from 'react-hot-toast';
 
-// Dynamically resolve live Render URL and guarantee single /api prefix
+// Dynamically resolve live Render backend URL and ensure single /api route prefix
 const rawUrl =
   import.meta.env.VITE_API_URL ||
   import.meta.env.VITE_API_BASE_URL ||
@@ -22,22 +22,43 @@ const getAuthHeaders = () => {
   };
 };
 
-// Built-in standard hospital formulary fallback
+// Fallback master list containing valid 24-character hexadecimal MongoDB ObjectIds
 const DEFAULT_HOSPITAL_MASTER = [
-  { _id: 'MED-001', medicineName: 'Paracetamol 500mg', medicineCode: 'PCM-500', categoryClass: 'Analgesics / Antipyretic', unitForm: 'Tablets' },
-  { _id: 'MED-002', medicineName: 'Amoxicillin 500mg', medicineCode: 'AMX-500', categoryClass: 'Antibiotics', unitForm: 'Capsules' },
-  { _id: 'MED-003', medicineName: 'Ibuprofen 400mg', medicineCode: 'IBU-400', categoryClass: 'NSAID / Anti-inflammatory', unitForm: 'Tablets' },
-  { _id: 'MED-004', medicineName: 'Metformin 500mg', medicineCode: 'MET-500', categoryClass: 'Antidiabetic', unitForm: 'Tablets' },
-  { _id: 'MED-005', medicineName: 'Omeprazole 20mg', medicineCode: 'OMP-20', categoryClass: 'Proton Pump Inhibitor (Antacid)', unitForm: 'Capsules' },
-  { _id: 'MED-006', medicineName: 'Ciprofloxacin 500mg', medicineCode: 'CIP-500', categoryClass: 'Antibiotics', unitForm: 'Tablets' },
-  { _id: 'MED-007', medicineName: 'Atorvastatin 20mg', medicineCode: 'ATV-20', categoryClass: 'Lipid-lowering', unitForm: 'Tablets' },
-  { _id: 'MED-008', medicineName: 'Losartan 50mg', medicineCode: 'LOS-50', categoryClass: 'Antihypertensive', unitForm: 'Tablets' },
-  { _id: 'MED-009', medicineName: 'Azithromycin 500mg', medicineCode: 'AZM-500', categoryClass: 'Antibiotics', unitForm: 'Tablets' },
-  { _id: 'MED-010', medicineName: 'Salbutamol Inhaler 100mcg', medicineCode: 'SBL-100', categoryClass: 'Bronchodilator (Asthma)', unitForm: 'Inhaler' },
-  { _id: 'MED-011', medicineName: 'Cetirizine 10mg', medicineCode: 'CTZ-10', categoryClass: 'Antihistamine (Allergy)', unitForm: 'Tablets' },
-  { _id: 'MED-012', medicineName: 'Dicerin / Diclofenac 50mg', medicineCode: 'DIC-50', categoryClass: 'NSAID', unitForm: 'Tablets' },
-  { _id: 'MED-013', medicineName: 'Dextrose 5% IV Infusion', medicineCode: 'DEX-IV', categoryClass: 'Intravenous Fluid', unitForm: 'Bags' },
-  { _id: 'MED-014', medicineName: 'Normal Saline 0.9% IV', medicineCode: 'NS-500', categoryClass: 'Intravenous Fluid', unitForm: 'Bags' }
+  { 
+    _id: '6aadff395f2bc59b1943b462', 
+    medicineCode: 'MED-001', 
+    medicineName: 'Paracetamol 500mg', 
+    categoryClass: 'Analgesic (Pain Relief)', 
+    unitForm: 'Tablets' 
+  },
+  { 
+    _id: '6aadff395f2bc59b1943b463', 
+    medicineCode: 'MED-002', 
+    medicineName: 'Amoxicillin 500mg', 
+    categoryClass: 'Antibiotics', 
+    unitForm: 'Capsules' 
+  },
+  { 
+    _id: '6aadff395f2bc59b1943b464', 
+    medicineCode: 'MED-003', 
+    medicineName: 'Ibuprofen 400mg', 
+    categoryClass: 'NSAID / Anti-inflammatory', 
+    unitForm: 'Tablets' 
+  },
+  { 
+    _id: '6aadff395f2bc59b1943b465', 
+    medicineCode: 'MED-004', 
+    medicineName: 'Cetirizine 10mg', 
+    categoryClass: 'Antihistamine (Allergy)', 
+    unitForm: 'Tablets' 
+  },
+  { 
+    _id: '6aadff395f2bc59b1943b466', 
+    medicineCode: 'MED-005', 
+    medicineName: 'Omeprazole 20mg', 
+    categoryClass: 'Antacid', 
+    unitForm: 'Capsules' 
+  }
 ];
 
 const HospitalInventory = () => {
@@ -66,35 +87,29 @@ const HospitalInventory = () => {
     setErrorMessage("");
 
     try {
+      // 1. Fetch current inventory stock from backend
       const stockRes = await fetch(API_URL, { headers: getAuthHeaders() });
       if (stockRes.ok) {
         const stockRaw = await stockRes.json();
-        const stockData = Array.isArray(stockRaw)
-          ? stockRaw
-          : Array.isArray(stockRaw?.data)
-          ? stockRaw.data
-          : [];
+        const stockData = Array.isArray(stockRaw) ? stockRaw : stockRaw?.data || [];
         setInventory(stockData);
       }
 
+      // 2. Fetch master list directly from database collection
       try {
-        const masterRes = await fetch(`${API_URL}/master-list`, { credentials: 'omit', headers: getAuthHeaders() });
+        const masterRes = await fetch(`${API_URL}/master-list`, { headers: getAuthHeaders() });
         if (masterRes.ok) {
           const masterRaw = await masterRes.json();
-          const masterData = Array.isArray(masterRaw)
-            ? masterRaw
-            : Array.isArray(masterRaw?.data)
-            ? masterRaw.data
-            : [];
+          const masterData = Array.isArray(masterRaw) ? masterRaw : masterRaw?.data || [];
           if (masterData.length > 0) {
             setMasterList(masterData);
           }
         }
       } catch {
-        console.info("Using built-in hospital formulary fallback list.");
+        console.info("Master-list endpoint unavailable, utilizing local fallback master list.");
       }
     } catch (err) {
-      console.error("Inventory loading error:", err);
+      console.error("Initial load error:", err);
       setErrorMessage("Could not connect to medicine database server.");
     } finally {
       setIsLoading(false);
@@ -105,6 +120,7 @@ const HospitalInventory = () => {
     loadInitialData();
   }, []);
 
+  // Filter master list as user types
   const handleNameType = (e) => {
     const val = e.target.value;
     setNewMed(prev => ({ ...prev, selectedName: val, medicineMasterId: '' }));
@@ -112,18 +128,7 @@ const HospitalInventory = () => {
 
     if (val.trim().length > 0) {
       const cleanVal = val.trim().toLowerCase();
-
-      const combinedPool = [...masterList];
-      inventory.forEach(item => {
-        const m = item.medicineMasterId;
-        if (m && typeof m === 'object' && m.medicineName) {
-          if (!combinedPool.some(p => p.medicineName?.toLowerCase() === m.medicineName.toLowerCase())) {
-            combinedPool.push(m);
-          }
-        }
-      });
-
-      const matches = combinedPool.filter(item => {
+      const matches = masterList.filter(item => {
         const name = (item.medicineName || item.name || "").toLowerCase();
         const code = (item.medicineCode || item.code || "").toLowerCase();
         return name.includes(cleanVal) || code.includes(cleanVal);
@@ -137,11 +142,12 @@ const HospitalInventory = () => {
     }
   };
 
+  // Map the genuine 24-character hexadecimal ObjectId to medicineMasterId
   const handleSelectDrug = (item) => {
     setNewMed(prev => ({
       ...prev,
       selectedName: item.medicineName || item.name || "",
-      medicineMasterId: item._id || item.id || `CUSTOM-${Date.now()}`
+      medicineMasterId: item._id
     }));
     setShowSuggestions(false);
     setErrorMessage("");
@@ -152,25 +158,10 @@ const HospitalInventory = () => {
     setErrorMessage("");
     setSuccessMessage("");
 
-    const nameToSave = newMed.selectedName.trim();
-    if (!nameToSave) {
-      setErrorMessage("Please enter a medicine name.");
+    if (!newMed.medicineMasterId) {
+      setErrorMessage("Spelling Verification Error: You must pick an approved option from the search suggestions dropdown menu.");
       return;
     }
-
-    let targetMasterId = newMed.medicineMasterId;
-    if (!targetMasterId) {
-      const matched = masterList.find(m => (m.medicineName || m.name || '').toLowerCase() === nameToSave.toLowerCase());
-      targetMasterId = matched ? (matched._id || matched.id) : `MED-${Math.floor(1000 + Math.random() * 9000)}`;
-    }
-
-    const payload = {
-      medicineMasterId: targetMasterId,
-      medicineName: nameToSave,
-      name: nameToSave,
-      quantity: Number(newMed.quantity) || 1,
-      storageLocation: newMed.storageLocation
-    };
 
     setIsSubmitting(true);
     const saveToast = toast.loading("Saving medicine entry...");
@@ -179,43 +170,36 @@ const HospitalInventory = () => {
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          medicineMasterId: newMed.medicineMasterId,
+          quantity: Number(newMed.quantity) || 1,
+          storageLocation: newMed.storageLocation
+        })
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Server returned error (${response.status})`);
+        throw new Error(errorData.message || `Server error (${response.status})`);
       }
       
       const resData = await response.json();
-      const addedRow = resData.medicine || resData.data || {
-        _id: resData._id || `STK-${Date.now()}`,
-        medicineMasterId: { medicineName: nameToSave, medicineCode: 'MANUAL', categoryClass: 'Hospital Inventory' },
-        quantity: Number(newMed.quantity),
-        storageLocation: newMed.storageLocation
-      };
+      const addedRow = resData.medicine || resData.data || resData;
       
       setInventory(prev => [addedRow, ...prev]);
 
       // Trigger On-Screen Banner
-      const successText = `Medicine "${nameToSave}" (${newMed.quantity} units) saved successfully!`;
+      const successText = `Medicine "${newMed.selectedName}" (${newMed.quantity} units) saved successfully!`;
       setSuccessMessage(successText);
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 5000);
+      setTimeout(() => setSuccessMessage(""), 5000);
 
       // Trigger Toast Popup
       toast.success(successText, {
         id: saveToast,
         duration: 4000,
-        style: {
-          background: '#078a72',
-          color: '#ffffff',
-          fontWeight: 'bold',
-        }
+        style: { background: '#078a72', color: '#ffffff', fontWeight: 'bold' }
       });
       
-      // Reset form
+      // Reset input form
       setNewMed({ 
         medicineMasterId: '', 
         selectedName: '', 
@@ -249,7 +233,7 @@ const HospitalInventory = () => {
   const lowStockAlerts = inventory.filter(item => (Number(item.quantity) || 0) <= 20).length;
 
   const filteredView = inventory.filter(item => {
-    const target = item.medicineMasterId?.medicineName || item.medicineMasterId?.name || item.medicineName || item.name || "";
+    const target = item.medicineMasterId?.medicineName || item.medicineMasterId?.name || "";
     return target.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
@@ -271,7 +255,7 @@ const HospitalInventory = () => {
 
       {/* SUCCESS BANNER */}
       {successMessage && (
-        <div className="p-4 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl text-sm font-bold flex items-center justify-between text-left transition-all shadow-sm animate-fadeIn">
+        <div className="p-4 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl text-sm font-bold flex items-center justify-between text-left shadow-sm transition-all animate-fadeIn">
           <div className="flex items-center gap-2.5">
             <FaCheckCircle className="text-emerald-600 text-lg shrink-0" />
             <span>{successMessage}</span>
@@ -282,7 +266,7 @@ const HospitalInventory = () => {
         </div>
       )}
 
-      {/* DASHBOARD STATUS CARDS */}
+      {/* STATUS COUNTERS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between text-left">
           <div>
@@ -331,14 +315,11 @@ const HospitalInventory = () => {
                 required 
               />
               
-              {/* Dropdown Suggestions List */}
               {showSuggestions && suggestions.length > 0 && (
-                <ul 
-                  className="absolute left-0 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 z-50"
-                >
-                  {suggestions.map((item, idx) => (
+                <ul className="absolute left-0 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 z-50">
+                  {suggestions.map((item) => (
                     <li 
-                      key={item._id || idx}
+                      key={item._id}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         handleSelectDrug(item);
@@ -435,7 +416,7 @@ const HospitalInventory = () => {
                       {filteredView.map((item) => {
                         const master = item.medicineMasterId || {};
                         const isLow = (Number(item.quantity) || 0) <= 20;
-                        const tableName = master.medicineName || master.name || item.medicineName || item.name || "Unknown Variant";
+                        const tableName = master.medicineName || master.name || item.name || "Unknown Variant";
                         return (
                           <tr key={item._id} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{master.medicineCode || master.code || "N/A"}</td>
