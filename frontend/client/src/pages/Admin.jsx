@@ -16,6 +16,11 @@ import StaffTask from "./StaffTask";
 
 import { FaUsers, FaUserMd, FaUserNurse } from "react-icons/fa";
 
+// API Base URL (uses environment variable if present, otherwise points to live Render backend)
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://medical-system-5fwx.onrender.com";
+
 // Main Dashboard View Component
 function AdminDashboardView() {
   const [dashboard, setDashboard] = useState({
@@ -41,9 +46,13 @@ function AdminDashboardView() {
       try {
         setLoading(true);
         const token = localStorage.getItem("token");
-        const response = await axios.get("http://localhost:5000/api/admin/dashboard", {
-          headers: { Authorization: `Bearer ${token}` },
+
+        const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
+
         setDashboard(response.data);
       } catch (err) {
         console.error("Error fetching admin dashboard data:", err);
