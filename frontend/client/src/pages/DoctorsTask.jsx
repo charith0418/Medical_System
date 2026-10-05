@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
-import AdminSidebar from "../components/admin/Dashboard/AdminSidebar";
-import AdminNavbar from "../components/admin/Dashboard/AdminNavebar";
 import DoctorModal from "../components/admin/doctors/DoctorModal";
 import DoctorTable from "../components/admin/doctors/DoctorTable";
 import ViewDoctorModal from "../components/admin/doctors/ViewDoctorModal";
 
-const API_BASE_URL =
+// Auto-clean API base URL to prevent double /api/api
+const RAW_URL =
   import.meta.env.VITE_API_BASE_URL ||
   "https://medical-system-5fwx.onrender.com";
+const CLEAN_BASE_URL = RAW_URL.replace(/\/api\/?$/, "");
 
-export default function DoctorsTask() {
+export default function Doctors() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,27 +26,32 @@ export default function DoctorsTask() {
 
   const doctorsPerPage = 5;
 
-  const token = localStorage.getItem("token");
-  const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+  const getAuthHeader = () => {
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+  };
 
-  // Fetch doctors from backend with full schema mapping
   const fetchDoctors = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_BASE_URL}/api/admin/doctors`, authHeader);
+      setError(null);
+      const res = await axios.get(`${CLEAN_BASE_URL}/api/admin/doctors`, getAuthHeader());
       
-      const formatted = res.data.map((doc) => ({
+      const rawList = Array.isArray(res.data) ? res.data : [];
+      const formatted = rawList.map((doc) => ({
         id: doc._id,
         _id: doc._id,
         doctorId: doc.doctorId || "N/A",
-        name: doc.name || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || doc.email,
+        name: doc.name || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || doc.email || "Doctor",
         firstName: doc.firstName || "",
         lastName: doc.lastName || "",
         specialization: doc.specialty || doc.specialization || "General",
+        specialty: doc.specialty || doc.specialization || "General",
         email: doc.email || "",
         phone: doc.phone || "N/A",
         nic: doc.nic || "N/A",
         license: doc.medicalLicenseNo || doc.license || "N/A",
+        medicalLicenseNo: doc.medicalLicenseNo || doc.license || "N/A",
       }));
       setDoctors(formatted);
     } catch (err) {
@@ -61,39 +66,21 @@ export default function DoctorsTask() {
     fetchDoctors();
   }, []);
 
-  // Add new doctor
   const addDoctor = async (newDoctor) => {
     try {
-      await axios.post(`${API_BASE_URL}/api/admin/doctors`, newDoctor, authHeader);
-      fetchDoctors();
+      await axios.post(`${CLEAN_BASE_URL}/api/admin/doctors`, newDoctor, getAuthHeader());
+      await fetchDoctors();
       setOpenModal(false);
     } catch (err) {
       alert(err.response?.data?.message || "Failed to create doctor account.");
     }
   };
 
-  // View Doctor
-  const handleView = (doctor) => {
-    setSelectedDoctor(doctor);
-    setViewOpen(true);
-  };
-
-  // Edit Doctor
-  const handleEdit = (doctor) => {
-    setEditDoctor(doctor);
-    setIsEdit(true);
-    setOpenModal(true);
-  };
-
-  // Update Doctor
   const updateDoctor = async (updatedDoctor) => {
     try {
-      await axios.put(
-        `${API_BASE_URL}/api/admin/doctors/${updatedDoctor.id || updatedDoctor._id}`,
-        updatedDoctor,
-        authHeader
-      );
-      fetchDoctors();
+      const docId = updatedDoctor._id || updatedDoctor.id;
+      await axios.put(`${CLEAN_BASE_URL}/api/admin/doctors/${docId}`, updatedDoctor, getAuthHeader());
+      await fetchDoctors();
       setOpenModal(false);
       setIsEdit(false);
       setEditDoctor(null);
@@ -102,162 +89,136 @@ export default function DoctorsTask() {
     }
   };
 
-  // Delete Doctor
   const deleteDoctor = async (id) => {
-    if (window.confirm("Are you sure you want to delete this doctor?")) {
-      try {
-        await axios.delete(`${API_BASE_URL}/api/admin/doctors/${id}`, authHeader);
-        fetchDoctors();
-      } catch (err) {
-        alert("Failed to delete doctor.");
-      }
+    try {
+      await axios.delete(`${CLEAN_BASE_URL}/api/admin/doctors/${id}`, getAuthHeader());
+      await fetchDoctors();
+    } catch (err) {
+      alert("Failed to delete doctor.");
     }
   };
 
-  // Auto-generate ID
+  const handleView = (doctor) => {
+    setSelectedDoctor(doctor);
+    setViewOpen(true);
+  };
+
+  const handleEdit = (doctor) => {
+    setEditDoctor(doctor);
+    setIsEdit(true);
+    setOpenModal(true);
+  };
+
   const getNextDoctorId = () => {
-    if (doctors.length === 0) {
-      return "DOC/0001";
-    }
-
+    if (!doctors || doctors.length === 0) return "DOC/0001";
     const validNumbers = doctors
-      .map((doctor) => {
-        const num = Number(String(doctor.doctorId).replace("DOC/", ""));
-        return isNaN(num) ? 0 : num;
-      })
-      .filter((num) => num > 0);
-
+      .map((d) => Number(String(d.doctorId || "").replace("DOC/", "")))
+      .filter((num) => !isNaN(num) && num > 0);
     const maxNumber = validNumbers.length > 0 ? Math.max(...validNumbers) : 0;
     return `DOC/${String(maxNumber + 1).padStart(4, "0")}`;
   };
 
-  // Filter Doctor
-  const filteredDoctors = doctors.filter(
-    (doctor) =>
-      (doctor.doctorId && doctor.doctorId.toLowerCase().includes(search.toLowerCase())) ||
-      (doctor.name && doctor.name.toLowerCase().includes(search.toLowerCase())) ||
-      (doctor.specialization && doctor.specialization.toLowerCase().includes(search.toLowerCase()))
-  );
+  const safeList = Array.isArray(doctors) ? doctors : [];
+  const filteredDoctors = safeList.filter((doc) => {
+    const q = (search || "").toLowerCase();
+    return (
+      (doc.doctorId && doc.doctorId.toLowerCase().includes(q)) ||
+      (doc.name && doc.name.toLowerCase().includes(q)) ||
+      (doc.specialization && doc.specialization.toLowerCase().includes(q))
+    );
+  });
 
-  // Pagination Logic
   const indexOfLastDoctor = currentPage * doctorsPerPage;
   const indexOfFirstDoctor = indexOfLastDoctor - doctorsPerPage;
-
-  const currentDoctors = filteredDoctors.slice(
-    indexOfFirstDoctor,
-    indexOfLastDoctor
-  );
-
+  const currentDoctors = filteredDoctors.slice(indexOfFirstDoctor, indexOfLastDoctor);
   const totalPages = Math.ceil(filteredDoctors.length / doctorsPerPage) || 1;
 
   return (
-    <div className="flex min-h-screen bg-gray-100 w-full overflow-x-hidden">
-      {/* Sidebar */}
-      <AdminSidebar />
+    <div className="w-full">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+            Doctor Management
+          </h1>
+          <p className="text-gray-500 mt-1 text-sm">
+            Manage official doctor accounts and system permissions.
+          </p>
+        </div>
 
-      {/* Main Content Area */}
-      <main className="flex-1 min-w-0 p-6 md:p-8 overflow-y-auto">
-        <AdminNavbar admin={{ name: "Admin" }} />
+        <button
+          onClick={() => {
+            setIsEdit(false);
+            setEditDoctor(null);
+            setOpenModal(true);
+          }}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow transition cursor-pointer self-start md:self-auto"
+        >
+          + Add Doctor
+        </button>
+      </div>
 
-        {/* Header */}
-        <div className="mt-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-              Doctor Management
-            </h1>
-            <p className="text-gray-500 mt-1">
-              Manage doctor accounts and information.
-            </p>
+      {/* Search Input */}
+      <div className="mt-6">
+        <input
+          type="text"
+          placeholder="Search by ID, Name or Specialization..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="w-full md:w-96 px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+        />
+      </div>
+
+      {/* Table Section */}
+      <div className="mt-6">
+        {loading ? (
+          <div className="p-12 text-center text-gray-500 bg-white rounded-2xl shadow-sm border border-gray-100">
+            Loading doctor profiles...
           </div>
+        ) : error ? (
+          <div className="p-6 text-center text-rose-600 bg-white rounded-2xl shadow-sm border border-rose-100">
+            {error}
+          </div>
+        ) : (
+          <DoctorTable
+            doctors={currentDoctors}
+            totalDoctors={filteredDoctors.length}
+            onView={handleView}
+            onEdit={handleEdit}
+            onDelete={deleteDoctor}
+          />
+        )}
+      </div>
+
+      {/* Pagination */}
+      {!loading && !error && filteredDoctors.length > doctorsPerPage && (
+        <div className="flex justify-between items-center mt-6">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+            className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-xs font-semibold text-gray-700 transition"
+          >
+            Previous
+          </button>
+
+          <span className="text-xs font-medium text-gray-500">
+            Page {currentPage} of {totalPages}
+          </span>
 
           <button
-            onClick={() => {
-              setIsEdit(false);
-              setEditDoctor(null);
-              setOpenModal(true);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold shadow self-start md:self-auto"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+            className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-xs font-semibold text-gray-700 transition"
           >
-            + Add Doctor
+            Next
           </button>
         </div>
+      )}
 
-        {/* Search & Filter */}
-        <div className="mt-6">
-          <div className="flex justify-between">
-            <input
-              type="text"
-              placeholder="Search by ID, Name or Specialization..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full md:w-96 px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            />
-          </div>
-        </div>
-
-        {/* Doctor Table */}
-        <div className="mt-6">
-          {loading ? (
-            <div className="p-6 text-center text-gray-500 bg-white rounded-xl shadow-sm">
-              Loading doctor data...
-            </div>
-          ) : error ? (
-            <div className="p-6 text-center text-red-500 bg-white rounded-xl shadow-sm">
-              {error}
-            </div>
-          ) : (
-            <DoctorTable
-              doctors={currentDoctors}
-              totalDoctors={doctors.length}
-              onView={handleView}
-              onEdit={handleEdit}
-              onDelete={deleteDoctor}
-            />
-          )}
-        </div>
-
-        {/* Pagination Controls */}
-        {!loading && !error && (
-          <div className="flex justify-between items-center mt-6">
-            <button
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(currentPage - 1)}
-              className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-sm font-medium transition-colors"
-            >
-              Previous
-            </button>
-
-            <div className="flex gap-2">
-              {[...Array(totalPages)].map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentPage(index + 1)}
-                  className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
-                    currentPage === index + 1
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 hover:bg-gray-300 text-gray-700"
-                  }`}
-                >
-                  {index + 1}
-                </button>
-              ))}
-            </div>
-
-            <button
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(currentPage + 1)}
-              className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-sm font-medium transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        )}
-      </main>
-
-      {/* Add & Edit Modal */}
+      {/* Modals */}
       <DoctorModal
         open={openModal}
         onClose={() => {
@@ -272,7 +233,6 @@ export default function DoctorsTask() {
         doctor={editDoctor}
       />
 
-      {/* View Doctor Modal */}
       <ViewDoctorModal
         open={viewOpen}
         doctor={selectedDoctor}
