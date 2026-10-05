@@ -1,9 +1,29 @@
 import React, { useState } from "react";
-import { Search, Pill, X } from "lucide-react";
+import { Search, Pill, X, Stethoscope } from "lucide-react";
 
 export default function PrescriptionPopup({ patient, prescription, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRxIndex, setSelectedRxIndex] = useState(0);
+
+  // Retrieve logged-in doctor session as fallback
+  let loggedInUser = {};
+  try {
+    loggedInUser = JSON.parse(
+      localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"
+    );
+  } catch (e) {
+    console.error("Error reading stored user session:", e);
+  }
+
+  const fallbackDocName =
+    loggedInUser.fullName ||
+    loggedInUser.name ||
+    (loggedInUser.username ? `Dr. ${loggedInUser.username}` : "Dr. Charith Kalhara");
+  const fallbackDocPosition =
+    loggedInUser.position ||
+    loggedInUser.specialization ||
+    loggedInUser.department ||
+    "Medical Officer";
 
   // 1. Extract raw list supporting both individual prescription or full patient object
   const rawList = prescription
@@ -13,7 +33,7 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
   // 2. Filter prescriptions based on search term
   const filteredPrescriptions = rawList.filter((item) => {
     const rxId = item._id || item.id || item.prescriptionId || "";
-    const doctor = item.orderedBy || item.doctorName || item.doctor || "";
+    const doctor = item.doctorName || item.orderedBy || item.doctor || "";
     const diagnosis = item.diagnosis || "";
 
     return (
@@ -23,10 +43,9 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
     );
   });
 
-  // Safe fallback for currently selected prescription object
   const selectedRx = filteredPrescriptions[selectedRxIndex] || rawList[0] || null;
 
-  // 3. Extract array of medicines (handles nested arrays as well as direct medicine objects)
+  // 3. Extract array of medicines
   const medicinesList = selectedRx
     ? selectedRx.medications ||
       selectedRx.medicines ||
@@ -36,23 +55,40 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
       (selectedRx.medicineName || selectedRx.name ? [selectedRx] : [])
     : [];
 
-  // Safe fallbacks for metadata
-  const doctorName =
-    selectedRx?.orderedBy ||
-    selectedRx?.doctorName ||
-    selectedRx?.doctor ||
-    "Dr. N. Silva";
+  // Helper to extract Doctor Name and Position dynamically
+  const getRxDoctorDetails = (rx) => {
+    const rawName =
+      (rx?.doctorName && rx.doctorName !== "Dr. N. Silva" ? rx.doctorName : null) ||
+      (rx?.orderedBy && rx.orderedBy !== "Dr. N. Silva" ? rx.orderedBy : null) ||
+      (typeof rx?.doctor === "string" && rx.doctor !== "Dr. N. Silva" ? rx.doctor : null) ||
+      (typeof rx?.doctor === "object" ? (rx.doctor.fullName || rx.doctor.name) : null) ||
+      rx?.physician;
+
+    const name = rawName || fallbackDocName;
+
+    const position =
+      rx?.doctorPosition ||
+      rx?.position ||
+      rx?.specialization ||
+      rx?.department ||
+      (typeof rx?.doctor === "object" ? (rx.doctor.position || rx.doctor.specialization) : null) ||
+      fallbackDocPosition;
+
+    return { name, position };
+  };
+
+  const doctorDetails = getRxDoctorDetails(selectedRx);
 
   const hospitalName =
     selectedRx?.hospital ||
     selectedRx?.hospitalName ||
     selectedRx?.clinic ||
+    loggedInUser.hospital ||
     "Smart Hospital";
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
       <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-slate-700 flex flex-col">
-        
         {/* Header */}
         <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
           <div className="flex items-center gap-3">
@@ -78,7 +114,6 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          
           {/* Search bar */}
           <div className="relative">
             <Search className="absolute left-4 top-3.5 text-slate-400" size={18} />
@@ -88,7 +123,7 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setSelectedRxIndex(0); // Reset selection when searching to avoid index out-of-bounds
+                setSelectedRxIndex(0);
               }}
               className="w-full bg-slate-800/60 border border-slate-700 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-400 outline-none focus:border-emerald-500 transition-all"
             />
@@ -96,7 +131,6 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
 
           {selectedRx ? (
             <div className="space-y-6">
-              
               {/* Rx Card Header Details */}
               <div className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-6 relative">
                 <div className="flex justify-between items-start mb-4">
@@ -109,7 +143,9 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
                   <span className="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-300 border border-slate-700 font-mono">
                     {selectedRx.dateIssued
                       ? new Date(selectedRx.dateIssued).toLocaleDateString()
-                      : selectedRx.date || "N/A"}
+                      : selectedRx.date
+                      ? new Date(selectedRx.date).toLocaleDateString()
+                      : "Recent"}
                   </span>
                 </div>
 
@@ -118,15 +154,18 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                       Ordered By
                     </span>
-                    <span className="font-bold text-white text-sm">
-                      {doctorName}
+                    <span className="font-bold text-white text-sm block">
+                      {doctorDetails.name}
+                    </span>
+                    <span className="text-[11px] font-semibold text-emerald-400 block mt-0.5">
+                      {doctorDetails.position}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                       Hospital / Clinic
                     </span>
-                    <span className="font-bold text-white text-sm">
+                    <span className="font-bold text-white text-sm block">
                       {hospitalName}
                     </span>
                   </div>
@@ -134,7 +173,7 @@ export default function PrescriptionPopup({ patient, prescription, onClose }) {
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                       Prescribed For
                     </span>
-                    <span className="font-bold text-emerald-400 text-sm">
+                    <span className="font-bold text-emerald-400 text-sm block">
                       {selectedRx.diagnosis || "General Consultation"}
                     </span>
                   </div>

@@ -1,17 +1,59 @@
 import React, { useState } from "react";
-import { FaHeartbeat, FaTimes, FaSearch } from "react-icons/fa";
+import { FaHeartbeat, FaTimes, FaSearch, FaUserMd } from "react-icons/fa";
 
 export default function MedicalHistoryPopup({ patient, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
 
   if (!patient) return null;
 
-  // Safe extractions for dynamic backend payloads
+  // Retrieve logged-in doctor session as backup
+  let loggedInUser = {};
+  try {
+    loggedInUser = JSON.parse(
+      localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"
+    );
+  } catch (e) {
+    console.error("Error reading stored user session:", e);
+  }
+
+  const fallbackDocName =
+    loggedInUser.fullName ||
+    loggedInUser.name ||
+    (loggedInUser.username ? `Dr. ${loggedInUser.username}` : "Attending Doctor");
+  const fallbackDocPosition =
+    loggedInUser.position ||
+    loggedInUser.specialization ||
+    loggedInUser.department ||
+    "Medical Officer";
+
+  // Helper to extract doctor name and position safely
+  const getDoctorDetails = (entry) => {
+    const rawName =
+      (entry?.doctorName && entry.doctorName !== "General Doctor" ? entry.doctorName : null) ||
+      (typeof entry?.doctor === "string" && entry.doctor !== "General Doctor" ? entry.doctor : null) ||
+      (typeof entry?.doctor === "object" ? (entry.doctor.fullName || entry.doctor.name) : null) ||
+      entry?.physician ||
+      entry?.doctorName ||
+      entry?.doctor;
+
+    const name = rawName && rawName !== "General Doctor" ? rawName : fallbackDocName;
+
+    const position =
+      entry?.doctorPosition ||
+      entry?.position ||
+      entry?.specialization ||
+      entry?.department ||
+      (typeof entry?.doctor === "object" ? (entry.doctor.position || entry.doctor.specialization) : null) ||
+      fallbackDocPosition;
+
+    return { name, position };
+  };
+
   const historyList = patient.history || patient.medicalHistory || [];
   const surgeriesList = patient.surgeries || [];
   const allergiesList = patient.allergies || [];
 
-  const filteredHistory = historyList.filter(h =>
+  const filteredHistory = historyList.filter((h) =>
     (h.diagnosis || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -21,13 +63,22 @@ export default function MedicalHistoryPopup({ patient, onClose }) {
         {/* Modal Header */}
         <div className="bg-slate-800 text-white p-6 flex justify-between items-center rounded-t-2xl border-b border-slate-700">
           <div className="flex items-center gap-4">
-            <div className="text-3xl text-emerald-400"><FaHeartbeat /></div>
+            <div className="text-3xl text-emerald-400">
+              <FaHeartbeat />
+            </div>
             <div>
-              <h3 className="text-2xl font-bold tracking-tight uppercase">Patient Medical History</h3>
-              <p className="text-xs text-slate-400 font-medium tracking-wider uppercase mt-0.5">Complete record of past diagnoses, surgeries, and allergies</p>
+              <h3 className="text-2xl font-bold tracking-tight uppercase">
+                Patient Medical History
+              </h3>
+              <p className="text-xs text-slate-400 font-medium tracking-wider uppercase mt-0.5">
+                Complete record of past diagnoses, surgeries, and allergies
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl p-2 cursor-pointer transition-colors rounded-xl hover:bg-white/5">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white text-2xl p-2 cursor-pointer transition-colors rounded-xl hover:bg-white/5"
+          >
             <FaTimes />
           </button>
         </div>
@@ -36,19 +87,33 @@ export default function MedicalHistoryPopup({ patient, onClose }) {
           {/* Patient Overview Details */}
           <div className="bg-white border border-slate-200 p-6 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-6 shadow-xs w-full">
             <div>
-              <span className="text-xs font-bold tracking-wider text-slate-400 block uppercase mb-1">Patient Name</span>
-              <span className="text-lg text-slate-900 font-bold tracking-tight">{patient.fullName || patient.name || "N/A"}</span>
+              <span className="text-xs font-bold tracking-wider text-slate-400 block uppercase mb-1">
+                Patient Name
+              </span>
+              <span className="text-lg text-slate-900 font-bold tracking-tight">
+                {patient.fullName || patient.name || "N/A"}
+              </span>
             </div>
             <div>
-              <span className="text-xs font-bold tracking-wider text-slate-400 block uppercase mb-1">Gender</span>
-              <span className="text-lg text-slate-900 font-bold tracking-tight">{patient.gender || "N/A"}</span>
+              <span className="text-xs font-bold tracking-wider text-slate-400 block uppercase mb-1">
+                Gender
+              </span>
+              <span className="text-lg text-slate-900 font-bold tracking-tight">
+                {patient.gender || "N/A"}
+              </span>
             </div>
             <div>
-              <span className="text-xs font-bold tracking-wider text-slate-400 block uppercase mb-1">Blood Type</span>
-              <span className="text-lg text-rose-600 font-bold tracking-tight">{patient.bloodGroup || "N/A"}</span>
+              <span className="text-xs font-bold tracking-wider text-slate-400 block uppercase mb-1">
+                Blood Type
+              </span>
+              <span className="text-lg text-rose-600 font-bold tracking-tight">
+                {patient.bloodGroup || "N/A"}
+              </span>
             </div>
             <div>
-              <span className="text-xs font-bold tracking-wider text-slate-400 block uppercase mb-1">Date of Birth</span>
+              <span className="text-xs font-bold tracking-wider text-slate-400 block uppercase mb-1">
+                Date of Birth
+              </span>
               <span className="text-lg text-slate-900 font-medium tracking-tight">
                 {patient.dob ? new Date(patient.dob).toLocaleDateString() : "N/A"}
               </span>
@@ -57,8 +122,10 @@ export default function MedicalHistoryPopup({ patient, onClose }) {
 
           {/* Search Filter */}
           <div className="relative w-full">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 text-lg"><FaSearch /></span>
-            <input 
+            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 text-lg">
+              <FaSearch />
+            </span>
+            <input
               type="text"
               placeholder="Search past diagnoses..."
               value={searchTerm}
@@ -67,29 +134,48 @@ export default function MedicalHistoryPopup({ patient, onClose }) {
             />
           </div>
 
-          {/* Diagnoses Table */}
+          {/* Diagnoses Table with Doctor Name & Position */}
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs w-full">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-widest">
                   <th className="p-4 pl-6">Diagnosis / Illness</th>
-                  <th className="p-4">Doctor Name</th>
+                  <th className="p-4">Attending Doctor & Position</th>
                   <th className="p-4 pr-6 text-right">Date Visited</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-base font-medium text-slate-600">
                 {filteredHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="p-6 text-center text-slate-400">No matching medical records found.</td>
+                    <td colSpan="3" className="p-6 text-center text-slate-400">
+                      No matching medical records found.
+                    </td>
                   </tr>
                 ) : (
-                  filteredHistory.map((h, i) => (
-                    <tr key={h._id || i} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="p-4 pl-6 text-slate-900 font-bold tracking-tight">{h.diagnosis || "Unspecified"}</td>
-                      <td className="p-4 text-slate-700">{h.doctor || "General Doctor"}</td>
-                      <td className="p-4 pr-6 text-right text-sm text-slate-400">{h.date || "N/A"}</td>
-                    </tr>
-                  ))
+                  filteredHistory.map((h, i) => {
+                    const doc = getDoctorDetails(h);
+                    return (
+                      <tr key={h._id || i} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="p-4 pl-6 text-slate-900 font-bold tracking-tight">
+                          {h.diagnosis || "Unspecified"}
+                        </td>
+                        <td className="p-4 text-slate-700">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                              <FaUserMd className="text-emerald-600 text-sm" />
+                              {doc.name}
+                            </span>
+                            <span className="text-xs text-slate-500 font-semibold pl-5">
+                              {doc.position}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-4 pr-6 text-right text-sm text-slate-400">
+                          {h.date ? new Date(h.date).toLocaleDateString() : "N/A"}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -106,12 +192,21 @@ export default function MedicalHistoryPopup({ patient, onClose }) {
                   <p className="text-xs text-slate-400">No past surgeries reported.</p>
                 ) : (
                   surgeriesList.map((s, idx) => (
-                    <div key={idx} className="flex justify-between items-start border-b border-dashed border-slate-100 pb-3 last:border-0">
+                    <div
+                      key={idx}
+                      className="flex justify-between items-start border-b border-dashed border-slate-100 pb-3 last:border-0"
+                    >
                       <div>
-                        <span className="font-bold text-slate-900 block text-base tracking-tight">{s.name || s.procedure}</span>
-                        <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">{s.doctor || "Surgeon"}</span>
+                        <span className="font-bold text-slate-900 block text-base tracking-tight">
+                          {s.name || s.procedure}
+                        </span>
+                        <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">
+                          {s.doctor || "Surgeon"}
+                        </span>
                       </div>
-                      <span className="font-medium text-sm text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">{s.date || "N/A"}</span>
+                      <span className="font-medium text-sm text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                        {s.date || "N/A"}
+                      </span>
                     </div>
                   ))
                 )}
@@ -127,8 +222,11 @@ export default function MedicalHistoryPopup({ patient, onClose }) {
                   <p className="text-xs text-slate-400">No known allergies reported.</p>
                 ) : (
                   allergiesList.map((allergy, idx) => (
-                    <span key={idx} className="bg-rose-50 border border-rose-200 text-rose-700 font-bold px-4 py-2 rounded-xl text-xs tracking-wider uppercase shadow-xs">
-                      ⚠️ {typeof allergy === 'string' ? allergy : allergy.name}
+                    <span
+                      key={idx}
+                      className="bg-rose-50 border border-rose-200 text-rose-700 font-bold px-4 py-2 rounded-xl text-xs tracking-wider uppercase shadow-xs"
+                    >
+                      ⚠️ {typeof allergy === "string" ? allergy : allergy.name}
                     </span>
                   ))
                 )}
