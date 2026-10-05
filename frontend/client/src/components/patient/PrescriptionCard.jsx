@@ -2,19 +2,70 @@ import React from "react";
 import { FaPills } from "react-icons/fa";
 
 export default function PrescriptionCard({ prescriptions = [], onViewAll }) {
-  // Safe array fallback
   const safePrescriptions = Array.isArray(prescriptions) ? prescriptions : [];
   const latestPrescription = safePrescriptions.length > 0 ? safePrescriptions[0] : null;
 
-  // Resolve medicines array safely (handles medicines, medications, or null/undefined)
-  const getMedicinesArray = (prescription) => {
-    if (!prescription) return [];
-    if (Array.isArray(prescription.medicines)) return prescription.medicines;
-    if (Array.isArray(prescription.medications)) return prescription.medications;
+  // Extract medicines from nested arrays or direct prescription objects
+  const getMedicinesArray = (rx) => {
+    if (!rx) return [];
+    if (Array.isArray(rx.medicines) && rx.medicines.length > 0) return rx.medicines;
+    if (Array.isArray(rx.medications) && rx.medications.length > 0) return rx.medications;
+    if (Array.isArray(rx.items) && rx.items.length > 0) return rx.items;
+    if (Array.isArray(rx.drugs) && rx.drugs.length > 0) return rx.drugs;
+    if (Array.isArray(rx.prescriptions) && rx.prescriptions.length > 0) return rx.prescriptions;
+
+    // Check if rx is itself a single prescribed medicine item
+    if (
+      rx.medicineName ||
+      rx.medicine ||
+      rx.name ||
+      rx.drug ||
+      (rx.medicineMasterId && typeof rx.medicineMasterId === "object")
+    ) {
+      return [rx];
+    }
+
     return [];
   };
 
-  const medicinesList = getMedicinesArray(latestPrescription);
+  // Extract from latest prescription, or flatten if prescriptions is a list of medicines
+  let medicinesList = getMedicinesArray(latestPrescription);
+  if (medicinesList.length === 0 && safePrescriptions.length > 0) {
+    const flattened = safePrescriptions.flatMap((item) => getMedicinesArray(item));
+    if (flattened.length > 0) {
+      medicinesList = flattened;
+    }
+  }
+
+  const getDrugName = (med) => {
+    if (typeof med === "string") return med;
+    if (!med) return "Medication";
+    return (
+      med.medicineName ||
+      med.medicine ||
+      med.name ||
+      med.drug ||
+      (med.medicineMasterId && typeof med.medicineMasterId === "object"
+        ? med.medicineMasterId.medicineName || med.medicineMasterId.name
+        : null) ||
+      "Prescribed Medication"
+    );
+  };
+
+  const rxTitle =
+    latestPrescription?.diagnosis ||
+    latestPrescription?.title ||
+    latestPrescription?.prescribedFor ||
+    "General Prescription";
+
+  const rxDate =
+    latestPrescription?.dateIssued ||
+    latestPrescription?.date ||
+    latestPrescription?.createdAt;
+
+  const formattedDate = rxDate
+    ? new Date(rxDate).toLocaleDateString()
+    : "Recent";
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-6 h-full flex flex-col justify-between">
@@ -40,58 +91,56 @@ export default function PrescriptionCard({ prescriptions = [], onViewAll }) {
             {/* Prescription Details */}
             <div className="flex justify-between items-start mb-4">
               <h4 className="font-semibold text-gray-800">
-                {latestPrescription.diagnosis || latestPrescription.title || "General Prescription"}
+                {rxTitle}
               </h4>
               <p className="text-xs bg-blue-100 text-blue-600 px-3 py-1 rounded-full font-medium">
-                {latestPrescription.date
-                  ? new Date(latestPrescription.date).toLocaleDateString()
-                  : "Recent"}
+                {formattedDate}
               </p>
             </div>
 
-            {/* Medicines List with strict inline array validation */}
+            {/* Medicines List */}
             {Array.isArray(medicinesList) && medicinesList.length > 0 ? (
               <div className="space-y-3 max-h-72 overflow-y-auto pr-2">
                 {medicinesList.map((medicine, index) => {
-                  if (!medicine) return null; // Safe check for null items in array
+                  if (!medicine) return null;
+
+                  const name = getDrugName(medicine);
+                  const dosage =
+                    medicine.dosage || medicine.dose || medicine.amount || "As directed";
+                  const frequency =
+                    medicine.frequency || medicine.instruction || "As directed";
+                  const duration = medicine.duration || "N/A";
 
                   return (
                     <div
                       key={medicine.id || medicine._id || index}
-                      className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition"
+                      className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition bg-slate-50/40"
                     >
                       <div className="flex justify-between items-start">
                         <div>
                           <h5 className="font-semibold text-gray-800">
-                            {typeof medicine === "string"
-                              ? medicine
-                              : medicine.medicine ||
-                                medicine.medicineName ||
-                                medicine.name ||
-                                "Medication"}
+                            {name}
                           </h5>
 
                           {typeof medicine === "object" && (
-                            <>
-                              <p className="text-sm text-gray-600 mt-1">
-                                <span className="font-medium">Dosage:</span>{" "}
-                                {medicine.dosage || "As directed"}
+                            <div className="mt-1 space-y-0.5 text-xs text-gray-600">
+                              <p>
+                                <span className="font-medium text-gray-500">Dosage:</span>{" "}
+                                {dosage}
                               </p>
-
-                              <p className="text-sm text-gray-600">
-                                <span className="font-medium">Frequency:</span>{" "}
-                                {medicine.frequency || "N/A"}
+                              <p>
+                                <span className="font-medium text-gray-500">Frequency:</span>{" "}
+                                {frequency}
                               </p>
-
-                              <p className="text-sm text-gray-600">
-                                <span className="font-medium">Duration:</span>{" "}
-                                {medicine.duration || "N/A"}
+                              <p>
+                                <span className="font-medium text-gray-500">Duration:</span>{" "}
+                                <span className="text-emerald-600 font-semibold">{duration}</span>
                               </p>
-                            </>
+                            </div>
                           )}
                         </div>
 
-                        <div className="bg-red-100 p-2 rounded-full text-red-500 shrink-0">
+                        <div className="bg-red-100 p-2 rounded-full text-red-500 shrink-0 ml-2">
                           <FaPills />
                         </div>
                       </div>
