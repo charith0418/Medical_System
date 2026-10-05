@@ -2,21 +2,20 @@ require('dotenv').config();
 const nodemailer = require('nodemailer');
 const dns = require('dns');
 
-// Prioritize IPv4 lookups to eliminate ENETUNREACH errors
+// Prioritize IPv4 lookups to prevent cloud container IPv6 network unreachability
 if (dns.setDefaultResultOrder) {
     dns.setDefaultResultOrder('ipv4first');
 }
 
-const ipv4Lookup = (hostname, options, callback) => {
-    return dns.lookup(hostname, { family: 4, all: false }, callback);
-};
+const portNumber = Number(process.env.EMAIL_PORT) || 465;
+const isSecure = portNumber === 465;
 
 const transporter = nodemailer.createTransport({
+    // Using service: 'gmail' natively applies Gmail's required socket & SSL settings
+    service: 'gmail',
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: Number(process.env.EMAIL_PORT) || 587,
-    secure: false, // false for port 587 (STARTTLS)
-    requireTLS: true,
-    lookup: ipv4Lookup,
+    port: portNumber,
+    secure: isSecure, // Automatically true for 465, false for 587
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
@@ -24,7 +23,10 @@ const transporter = nodemailer.createTransport({
     tls: {
         rejectUnauthorized: false,
     },
-    connectionTimeout: 8000,
+    // Increased timeouts to accommodate cloud latency spikes
+    connectionTimeout: 20000, // 20 seconds
+    greetingTimeout: 20000,
+    socketTimeout: 20000,
 });
 
 /**
@@ -32,9 +34,12 @@ const transporter = nodemailer.createTransport({
  */
 const sendWelcomeEmail = async (to, fullName, patientId) => {
     try {
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return null;
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            console.warn("⚠️️ [SMTP NOTICE] EMAIL_USER or EMAIL_PASS missing. Skipped sending welcome email.");
+            return null;
+        }
 
-        const clientBaseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientBaseUrl = process.env.CLIENT_URL || 'https://medical-system-5fwx.onrender.com';
         const portalLoginUrl = `${clientBaseUrl}/login?email=${encodeURIComponent(to)}`;
 
         const mailOptions = {
@@ -42,17 +47,31 @@ const sendWelcomeEmail = async (to, fullName, patientId) => {
             to: to,
             subject: 'Medicare Health Network | Registration Successful',
             html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px;">
-                    <h2>Welcome ${fullName}!</h2>
-                    <p>Your Patient ID is: <strong>${patientId}</strong></p>
-                    <a href="${portalLoginUrl}">Login to Patient Portal</a>
+                <div style="font-family: Arial, sans-serif; padding: 24px; background-color: #f8fafc; color: #1e293b;">
+                    <div style="max-width: 560px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 32px;">
+                        <h2 style="color: #0f172a; margin-top: 0;">Welcome to Medicare, ${fullName}!</h2>
+                        <p style="font-size: 15px; color: #475569;">
+                            Your hospital patient profile has been registered successfully.
+                        </p>
+                        <div style="background-color: #f1f5f9; padding: 16px; border-radius: 12px; margin: 20px 0;">
+                            <span style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: bold; display: block;">Your Assigned Patient ID</span>
+                            <span style="font-size: 20px; font-weight: bold; color: #0f172a; font-family: monospace;">${patientId}</span>
+                        </div>
+                        <div style="text-align: center; margin: 28px 0;">
+                            <a href="${portalLoginUrl}" style="background-color: #078a72; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 15px; display: inline-block;">
+                                Access Patient Portal
+                            </a>
+                        </div>
+                    </div>
                 </div>
             `,
         };
 
-        return await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✉️️ [SMTP SUCCESS] Welcome email delivered to ${to}. MessageId: ${info.messageId}`);
+        return info;
     } catch (err) {
-        console.error("⚠️️ Welcome email skipped:", err.message);
+        console.error("❌ [SMTP ERROR] Welcome email dispatch failed:", err.message);
         return null;
     }
 };
@@ -61,10 +80,9 @@ const sendWelcomeEmail = async (to, fullName, patientId) => {
  * Sends secure password reset link to user email
  */
 const sendPasswordResetEmail = async (to, resetToken, clientBaseUrl) => {
-    const baseUrl = clientBaseUrl || process.env.CLIENT_URL || 'http://localhost:5173';
+    const baseUrl = clientBaseUrl || process.env.CLIENT_URL || 'https://medical-system-5fwx.onrender.com';
     const resetPasswordUrl = `${baseUrl}/reset-password/${resetToken}`;
 
-    // Always log the link to the terminal so testing is never blocked
     console.log("\n=======================================================");
     console.log("🔑 [PASSWORD RESET LINK GENERATED]");
     console.log(`🔗 Click/Copy Link: ${resetPasswordUrl}`);
