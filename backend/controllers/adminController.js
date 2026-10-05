@@ -43,7 +43,20 @@ const getDoctors = async (req, res) => {
 };
 
 const createDoctor = async (req, res) => {
-  const { email, password, firstName, lastName, doctorId, phone, specialization, specialty, name } = req.body;
+  const {
+    email,
+    password,
+    firstName,
+    lastName,
+    doctorId,
+    phone,
+    specialization,
+    specialty,
+    name,
+    nic,
+    license,
+    medicalLicenseNo,
+  } = req.body;
   let newUser = null;
 
   try {
@@ -60,22 +73,27 @@ const createDoctor = async (req, res) => {
     const doctorName = name?.trim() || `${firstName || ''} ${lastName || ''}`.trim() || 'Dr. Unknown';
     const cleanDoctorId = doctorId?.trim() || `DOC/${Math.floor(1000 + Math.random() * 9000)}`;
     const cleanSpecialty = specialization?.trim() || specialty?.trim() || 'General';
+    const cleanNic = nic?.trim() || 'N/A';
+    const cleanLicense = medicalLicenseNo?.trim() || license?.trim() || 'N/A';
+    const cleanPassword = (password && String(password).trim().length > 0) ? String(password).trim() : 'Doctor@123456';
 
-    // 1. Create User account for login (Default password: Doctor@123456)
+    // 1. Create User account for login with custom password
     newUser = await User.create({
       email: cleanEmail,
-      password: (password && String(password).trim().length > 0) ? String(password).trim() : 'Doctor@123456',
+      password: cleanPassword,
       role: 'Doctor',
       name: doctorName,
     });
 
-    // 2. Create Doctor profile matching Doctor Schema
+    // 2. Create Doctor profile with NIC and License Number saved
     const newDoctor = await Doctor.create({
       doctorId: cleanDoctorId,
       name: doctorName,
       email: cleanEmail,
       specialty: cleanSpecialty,
       phone: phone?.trim() || 'N/A',
+      nic: cleanNic,
+      medicalLicenseNo: cleanLicense,
     });
 
     return res.status(201).json({ message: 'Doctor created successfully', doctor: newDoctor });
@@ -94,11 +112,19 @@ const createDoctor = async (req, res) => {
 
 const updateDoctor = async (req, res) => {
   try {
-    const { firstName, lastName, name, specialization, specialty } = req.body;
+    const { firstName, lastName, name, specialization, specialty, nic, license, medicalLicenseNo } = req.body;
     const updateData = { ...req.body };
 
     if (specialization || specialty) {
       updateData.specialty = specialization || specialty;
+    }
+
+    if (medicalLicenseNo || license) {
+      updateData.medicalLicenseNo = medicalLicenseNo || license;
+    }
+
+    if (nic) {
+      updateData.nic = nic;
     }
 
     const updatedName = name?.trim() || `${firstName || ''} ${lastName || ''}`.trim();
@@ -173,16 +199,15 @@ const createStaff = async (req, res) => {
     const cleanPhone = phone?.trim() || '0700000000';
     const cleanNic = nic?.trim() || `NIC-${Date.now()}`;
     const cleanRole = role?.trim() || 'Staff';
+    const cleanPassword = (password && String(password).trim().length > 0) ? String(password).trim() : 'Staff@123456';
 
-    // 1. Create User account (Default password: Staff@123456)
     newUser = await User.create({
       email: cleanEmail,
-      password: (password && String(password).trim().length > 0) ? String(password).trim() : 'Staff@123456',
+      password: cleanPassword,
       role: 'Staff',
       name: `${cleanFirstName} ${cleanLastName}`,
     });
 
-    // 2. Create Staff profile
     const newStaff = await Staff.create({
       user: newUser._id,
       staffId: cleanStaffId,
