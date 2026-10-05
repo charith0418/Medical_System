@@ -5,13 +5,12 @@ import DoctorModal from "../components/admin/doctors/DoctorModal";
 import DoctorTable from "../components/admin/doctors/DoctorTable";
 import ViewDoctorModal from "../components/admin/doctors/ViewDoctorModal";
 
-// Auto-clean API base URL to prevent double /api/api
 const RAW_URL =
   import.meta.env.VITE_API_BASE_URL ||
   "https://medical-system-5fwx.onrender.com";
 const CLEAN_BASE_URL = RAW_URL.replace(/\/api\/?$/, "");
 
-export default function Doctors() {
+export default function DoctorsTask() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,11 +35,11 @@ export default function Doctors() {
       setLoading(true);
       setError(null);
       const res = await axios.get(`${CLEAN_BASE_URL}/api/admin/doctors`, getAuthHeader());
-      
+
       const rawList = Array.isArray(res.data) ? res.data : [];
       const formatted = rawList.map((doc) => ({
-        id: doc._id,
-        _id: doc._id,
+        id: doc._id || doc.id,
+        _id: doc._id || doc.id,
         doctorId: doc.doctorId || "N/A",
         name: doc.name || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || doc.email || "Doctor",
         firstName: doc.firstName || "",
@@ -118,14 +117,17 @@ export default function Doctors() {
     return `DOC/${String(maxNumber + 1).padStart(4, "0")}`;
   };
 
+  // Safe filter using optional chaining so undefined values never throw an error
   const safeList = Array.isArray(doctors) ? doctors : [];
   const filteredDoctors = safeList.filter((doc) => {
-    const q = (search || "").toLowerCase();
-    return (
-      (doc.doctorId && doc.doctorId.toLowerCase().includes(q)) ||
-      (doc.name && doc.name.toLowerCase().includes(q)) ||
-      (doc.specialization && doc.specialization.toLowerCase().includes(q))
-    );
+    const q = (search || "").toLowerCase().trim();
+    if (!q) return true;
+    const idMatch = doc.doctorId ? String(doc.doctorId).toLowerCase().includes(q) : false;
+    const nameMatch = doc.name ? String(doc.name).toLowerCase().includes(q) : false;
+    const specMatch = (doc.specialization || doc.specialty)
+      ? String(doc.specialization || doc.specialty).toLowerCase().includes(q)
+      : false;
+    return idMatch || nameMatch || specMatch;
   });
 
   const indexOfLastDoctor = currentPage * doctorsPerPage;
@@ -135,7 +137,7 @@ export default function Doctors() {
 
   return (
     <div className="w-full">
-      {/* Top Header */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
@@ -158,7 +160,7 @@ export default function Doctors() {
         </button>
       </div>
 
-      {/* Search Input */}
+      {/* Search Bar */}
       <div className="mt-6">
         <input
           type="text"
@@ -172,7 +174,7 @@ export default function Doctors() {
         />
       </div>
 
-      {/* Table Section */}
+      {/* Doctor Table */}
       <div className="mt-6">
         {loading ? (
           <div className="p-12 text-center text-gray-500 bg-white rounded-2xl shadow-sm border border-gray-100">
@@ -193,7 +195,7 @@ export default function Doctors() {
         )}
       </div>
 
-      {/* Pagination */}
+      {/* Pagination Controls */}
       {!loading && !error && filteredDoctors.length > doctorsPerPage && (
         <div className="flex justify-between items-center mt-6">
           <button
@@ -218,7 +220,7 @@ export default function Doctors() {
         </div>
       )}
 
-      {/* Modals */}
+      {/* Add / Edit Doctor Modal */}
       <DoctorModal
         open={openModal}
         onClose={() => {
@@ -233,6 +235,7 @@ export default function Doctors() {
         doctor={editDoctor}
       />
 
+      {/* View Doctor Modal */}
       <ViewDoctorModal
         open={viewOpen}
         doctor={selectedDoctor}

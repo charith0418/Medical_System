@@ -16,7 +16,7 @@ import StaffTask from "./StaffTask";
 
 import { FaUsers, FaUserMd, FaUserNurse } from "react-icons/fa";
 
-// API Base URL (uses environment variable if present, otherwise points to live Render backend)
+// API Base URL
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   "https://medical-system-5fwx.onrender.com";
@@ -134,7 +134,9 @@ export default function Admin({ onLogout }) {
       <main className="flex-1 ml-72 p-8 overflow-y-auto">
         <Routes>
           <Route path="/" element={<AdminDashboardView />} />
+          <Route path="doctors" element={<DoctorsTask />} />
           <Route path="/doctors" element={<DoctorsTask />} />
+          <Route path="staff" element={<StaffTask />} />
           <Route path="/staff" element={<StaffTask />} />
         </Routes>
       </main>
