@@ -10,12 +10,6 @@ export default function DoctorModal({
   doctor,
   updateDoctor,
 }) {
-  const doctorId = isEdit ? doctor?.doctorId : nextDoctorId;
-
-  const email = isEdit
-    ? doctor?.email
-    : `doc${String(doctorId || "").replace("DOC/", "").toLowerCase()}@dr.mh.ac.lk`;
-
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -25,8 +19,28 @@ export default function DoctorModal({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // Declared at top level so it is always initialized
+  const resetForm = () => {
+    setFirstName("");
+    setLastName("");
+    setPhone("");
+    setNic("");
+    setSpecialization("");
+    setLicense("");
+    setPassword("");
+    setConfirmPassword("");
+  };
+
+  const doctorId = isEdit ? doctor?.doctorId : nextDoctorId;
+
+  const email = isEdit
+    ? doctor?.email
+    : `doc${String(doctorId || "").replace("DOC/", "").toLowerCase()}@dr.mh.ac.lk`;
+
   // Populate data when editing an existing doctor
   useEffect(() => {
+    if (!open) return; // Do not run when modal is closed
+
     if (isEdit && doctor) {
       const cleanName = (doctor.name || "").replace("Dr. ", "").trim();
       const names = cleanName.split(" ");
@@ -50,21 +64,7 @@ export default function DoctorModal({
     }
   }, [doctor, isEdit, open]);
 
-  if (!open) return null;
-
-  const resetForm = () => {
-    setFirstName("");
-    setLastName("");
-    setPhone("");
-    setNic("");
-    setSpecialization("");
-    setLicense("");
-    setPassword("");
-    setConfirmPassword("");
-  };
-
   const handleRegister = () => {
-    // 1. Edit Doctor Flow
     if (isEdit) {
       const updatedDoctor = {
         id: doctor.id || doctor._id,
@@ -88,7 +88,6 @@ export default function DoctorModal({
       return;
     }
 
-    // 2. Add Doctor Validation
     if (
       !firstName.trim() ||
       !lastName.trim() ||
@@ -113,7 +112,6 @@ export default function DoctorModal({
       return;
     }
 
-    // 3. Create Doctor Payload (now includes password, nic, and license!)
     const newDoctor = {
       doctorId,
       name: `Dr. ${firstName.trim()} ${lastName.trim()}`.trim(),
@@ -126,13 +124,16 @@ export default function DoctorModal({
       nic: nic.trim(),
       license: license.trim(),
       medicalLicenseNo: license.trim(),
-      password: password.trim(), // <--- Custom password is now sent to backend!
+      password: password.trim(),
     };
 
     addDoctor(newDoctor);
     resetForm();
     onClose();
   };
+
+  // Safe early exit AFTER all helpers and states are initialized
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-5">
